@@ -160,6 +160,9 @@ let booking = {
   phone: "",
   birth: "",
   notes: "",
+  clientId: "",
+  lookupDone: false,
+  adminMode: false,
 };
 let adminTab = "dashboard";
 let cashTab = "movimentos";
@@ -311,7 +314,7 @@ function bookingModal() {
     ];
   let body = "";
   if (booking.step === 0)
-    body = `<div><p class="muted" style="margin-top:0">Informe seus dados para começar. Ao confirmar o horário, seu cadastro ficará disponível para a barbearia.</p><div class="form-grid"><label class="field"><span>Nome completo *</span><input id="book-name" value="${booking.name}" placeholder="Seu nome"></label><label class="field"><span>WhatsApp *</span><input id="book-phone" inputmode="tel" value="${booking.phone}" placeholder="(62) 99999-9999"></label><label class="field"><span>Data de nascimento</span><input id="book-birth" type="date" value="${booking.birth || ""}"></label><label class="field"><span>Observações</span><input id="book-notes" value="${booking.notes}" placeholder="Opcional"></label></div></div>`;
+    body = `<div>${booking.adminMode ? `<div class="field" style="margin-bottom:22px"><span>Selecionar cliente cadastrado</span><div style="display:flex;gap:10px"><select id="admin-client" style="flex:1"><option value="">Escolha pelo nome ou WhatsApp</option>${db.clients.map((c) => `<option value="${c.id}" ${booking.clientId === c.id ? "selected" : ""}>${c.name} · ${c.phone}</option>`).join("")}</select><button class="btn btn-dark" type="button" data-use-client>Usar cliente</button></div></div><div class="eyebrow" style="margin:20px 0">OU CADASTRAR NOVO</div>` : '<p class="muted" style="margin-top:0">Digite seu WhatsApp. Se você já for cliente, recuperamos seu cadastro automaticamente.</p>'}<div class="form-grid"><label class="field"><span>WhatsApp *</span><input id="book-phone" inputmode="tel" value="${booking.phone}" placeholder="(62) 99999-9999"></label><div class="field"><span>&nbsp;</span><button class="btn btn-outline" type="button" data-find-client>Buscar cadastro</button></div>${booking.lookupDone ? (booking.clientId ? `<div class="field full"><div class="summary"><span>Bem-vindo novamente, <b>${booking.name}</b></span><span class="badge green">Cadastro encontrado</span></div></div>` : `<label class="field"><span>Nome completo *</span><input id="book-name" value="${booking.name}" placeholder="Seu nome"></label><label class="field"><span>Data de nascimento</span><input id="book-birth" type="date" value="${booking.birth || ""}"></label>`) : ""}<label class="field full"><span>Observações</span><input id="book-notes" value="${booking.notes}" placeholder="Opcional"></label></div></div>`;
   if (booking.step === 1)
     body = `<div class="choice-grid">${db.services
       .filter((s) => s.active)
@@ -439,6 +442,9 @@ function bind() {
           phone: "",
           birth: "",
           notes: "",
+          clientId: "",
+          lookupDone: false,
+          adminMode: false,
         };
         document.body.insertAdjacentHTML("beforeend", bookingModal());
         bindBooking();
@@ -486,6 +492,9 @@ function bind() {
       phone: "",
       birth: "",
       notes: "",
+      clientId: "",
+      lookupDone: false,
+      adminMode: true,
     };
     document.body.insertAdjacentHTML("beforeend", bookingModal());
     bindBooking();
@@ -645,6 +654,33 @@ function bind() {
 function bindBooking() {
   let modal = document.querySelector("#booking-modal");
   modal.querySelector("[data-close]").onclick = () => modal.remove();
+  modal.querySelector("[data-find-client]")?.addEventListener("click", () => {
+    const phone = modal.querySelector("#book-phone").value.replace(/\D/g, "");
+    if (phone.length < 10) return toast("Digite um WhatsApp válido");
+    const found = db.clients.find((c) => c.phone.replace(/\D/g, "") === phone);
+    booking.phone = phone;
+    booking.lookupDone = true;
+    booking.clientId = found?.id || "";
+    booking.name = found?.name || "";
+    booking.birth = found?.birth || "";
+    booking.notes = modal.querySelector("#book-notes")?.value || "";
+    refreshModal();
+    toast(
+      found ? "Cadastro encontrado" : "Primeiro acesso: complete seu cadastro",
+    );
+  });
+  modal.querySelector("[data-use-client]")?.addEventListener("click", () => {
+    const id = modal.querySelector("#admin-client").value;
+    const found = db.clients.find((c) => c.id === id);
+    if (!found) return toast("Selecione um cliente cadastrado");
+    booking.clientId = found.id;
+    booking.lookupDone = true;
+    booking.name = found.name;
+    booking.phone = found.phone.replace(/\D/g, "");
+    booking.birth = found.birth || "";
+    refreshModal();
+    toast("Cliente selecionado");
+  });
   modal.querySelectorAll("[data-select-service]").forEach(
     (x) =>
       (x.onclick = () => {
@@ -681,11 +717,18 @@ function bindBooking() {
   });
   modal.querySelector("[data-next]")?.addEventListener("click", () => {
     if (booking.step === 0) {
-      booking.name = modal.querySelector("#book-name").value.trim();
       booking.phone = modal
         .querySelector("#book-phone")
         .value.replace(/\D/g, "");
-      booking.birth = modal.querySelector("#book-birth").value;
+      if (!booking.lookupDone)
+        return toast("Busque o cadastro pelo WhatsApp primeiro");
+      booking.name =
+        modal.querySelector("#book-name")?.value.trim() || booking.name;
+      booking.phone = modal
+        .querySelector("#book-phone")
+        .value.replace(/\D/g, "");
+      booking.birth =
+        modal.querySelector("#book-birth")?.value || booking.birth;
       booking.notes = modal.querySelector("#book-notes").value;
       if (!booking.name || booking.phone.length < 10)
         return toast("Preencha seu nome e WhatsApp");
