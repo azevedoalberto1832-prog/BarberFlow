@@ -1,6 +1,6 @@
-# BarberFlow
+# PALAZZO STUDIO BARBER — BarberFlow
 
-Demo pública de agendamento e gestão para barbearias, criada para a **Barbearia Monteiro**.
+Demo pública de agendamento e gestão personalizada para a **PALAZZO STUDIO BARBER**.
 
 ## Funcionalidades
 

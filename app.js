@@ -136,20 +136,24 @@ const seed = {
   ],
   categories: ["Serviços", "Produtos", "Insumos", "Aluguel", "Marketing"],
   settings: {
-    shop: "Barbearia Monteiro",
+    shop: "PALAZZO STUDIO BARBER",
     address: "Rua das Palmeiras, 128 — Centro, Goiânia - GO",
-    phone: "5562999999999",
+    phone: "5565992788465",
     open: "09:00",
     close: "19:00",
     breakStart: "12:00",
     breakEnd: "13:00",
     greeting:
-      "Olá! Bem-vindo à Barbearia Monteiro. Agende seu horário pelo BarberFlow.",
+      "Olá! Bem-vindo à PALAZZO STUDIO BARBER. Agende seu horário pelo nosso sistema oficial.",
   },
 };
 let db =
   JSON.parse(localStorage.getItem("barberflow-demo") || "null") ||
   structuredClone(seed);
+db.settings.shop = "PALAZZO STUDIO BARBER";
+db.settings.phone = "5565992788465";
+db.settings.greeting =
+  "Olá! Bem-vindo à PALAZZO STUDIO BARBER. Agende seu horário pelo nosso sistema oficial.";
 let booking = {
   step: 0,
   serviceIds: [],
@@ -266,7 +270,7 @@ function confirmAdmin(message, action) {
   };
 }
 function publicPage() {
-  return `<header class="topbar"><div class="container"><div class="brand"><span class="mark">BF</span><div>Barbearia Monteiro<small>BARBERFLOW</small></div></div><div><a class="btn btn-outline" target="_blank" href="https://wa.me/${db.settings.phone}?text=${encodeURIComponent(db.settings.greeting)}">WhatsApp</a> <button class="btn btn-dark" data-book>Iniciar agendamento</button></div></div></header><main><section class="hero"><div class="container"><div style="max-width:760px"><div class="eyebrow">Agendamento online</div><h1>Escolha seu serviço e reserve seu horário.</h1><p>Faça um cadastro rápido, selecione o atendimento e veja somente os horários realmente disponíveis.</p><div class="hero-actions"><button class="btn btn-copper" data-book>Iniciar agendamento →</button><a class="btn btn-ghost" href="#servicos">Ver serviços</a></div></div></div></section><section class="section" id="servicos"><div class="container"><div class="section-head"><div><div class="eyebrow">Serviços</div><h2>Escolha o seu atendimento</h2></div><p class="muted">Preço e duração atualizados.<br>Você pode combinar mais de um serviço.</p></div><div class="service-grid">${db.services
+  return `<header class="topbar"><div class="container"><div class="brand"><img class="brand-logo" src="palazzo-logo.jpg" alt="Logo Palazzo"><div>PALAZZO<small>STUDIO BARBER</small></div></div><div><a class="btn btn-outline" target="_blank" href="https://www.instagram.com/Palazzobarber_/">Instagram</a> <a class="btn btn-outline" target="_blank" href="https://wa.me/${db.settings.phone}?text=${encodeURIComponent(db.settings.greeting)}">WhatsApp</a> <button class="btn btn-dark" data-book>Agendar horário</button></div></div></header><main><section class="hero"><div class="container hero-grid"><div><div class="eyebrow">Sistema oficial de agendamento</div><h1>PALAZZO</h1><h2 style="letter-spacing:.3em;color:var(--copper2);margin:12px 0 24px">STUDIO BARBER</h2><p>Faça um cadastro rápido, escolha seu serviço e veja somente os horários realmente disponíveis.</p><div class="hero-actions"><button class="btn btn-copper" data-book>Agendar horário →</button><a class="btn btn-outline" target="_blank" href="https://www.instagram.com/Palazzobarber_/">@Palazzobarber_</a><a class="btn btn-outline" target="_blank" href="https://wa.me/${db.settings.phone}?text=${encodeURIComponent(db.settings.greeting)}">WhatsApp</a></div></div><img class="hero-logo" src="palazzo-logo.jpg" alt="PALAZZO Studio Barber"></div></section><section class="section" id="servicos"><div class="container"><div class="section-head"><div><div class="eyebrow">Serviços</div><h2>Escolha o seu atendimento</h2></div><p class="muted">Preço e duração atualizados.<br>Você pode combinar mais de um serviço.</p></div><div class="service-grid">${db.services
     .filter((s) => s.active)
     .map(
       (s) =>
@@ -274,7 +278,7 @@ function publicPage() {
     )
     .join(
       "",
-    )}</div></div></section><section class="section"><div class="container"><div class="location"><div><div class="eyebrow">Endereço</div><h2 style="font-size:38px;margin:8px 0">Barbearia Monteiro</h2><p>${db.settings.address}</p></div><div><button class="btn btn-copper" data-book>Agendar agora</button> <a class="btn btn-outline" style="color:white" target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(db.settings.address)}">Abrir no mapa</a></div></div></div></section></main><footer class="footer"><div class="container"><span>© BarberFlow — Barbearia Monteiro</span><button class="btn btn-outline" data-admin>Área da barbearia</button></div></footer>`;
+    )}</div></div></section><section class="section"><div class="container"><div class="location"><div><div class="eyebrow">Endereço</div><h2 style="font-size:38px;margin:8px 0">PALAZZO STUDIO BARBER</h2><p>${db.settings.address}</p></div><div><button class="btn btn-copper" data-book>Agendar horário</button> <a class="btn btn-outline" target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(db.settings.address)}">Abrir no mapa</a></div></div></div></section></main><footer class="footer"><div class="container"><span>© PALAZZO STUDIO BARBER</span><div><a class="btn btn-ghost" target="_blank" href="https://www.instagram.com/Palazzobarber_/">@Palazzobarber_</a><button class="btn btn-outline" data-admin>Área da barbearia</button></div></div></footer>`;
 }
 function availableSlots() {
   let dur = total().duration || 30,
@@ -336,7 +340,7 @@ function bookingModal() {
     }</div>`;
   if (booking.step === 4) {
     let p = PEOPLE.find((x) => x.id === booking.professional);
-    body = `<div style="text-align:center;padding:22px"><div class="mark" style="margin:auto;background:var(--green);font-size:22px">✓</div><h2 style="margin:18px 0 8px">Agendamento confirmado</h2><p class="muted">${dateBR(booking.date)} às ${booking.time} · ${p?.name || "Profissional disponível"}</p><div class="summary"><b>${booking.serviceIds.map((id) => service(id).name).join(" + ")}</b><b>${money(t.price)}</b></div><a target="_blank" class="btn btn-copper" href="https://wa.me/${db.settings.phone}?text=${encodeURIComponent(`Olá! Confirme meu agendamento na Barbearia Monteiro: ${booking.serviceIds.map((id) => service(id).name).join(" + ")}, dia ${dateBR(booking.date)} às ${booking.time}. Cliente: ${booking.name}.`)}">Enviar resumo pelo WhatsApp</a></div>`;
+    body = `<div style="text-align:center;padding:22px"><div class="mark" style="margin:auto;background:var(--green);font-size:22px">✓</div><h2 style="margin:18px 0 8px">Agendamento confirmado</h2><p class="muted">${dateBR(booking.date)} às ${booking.time} · ${p?.name || "Profissional disponível"}</p><div class="summary"><b>${booking.serviceIds.map((id) => service(id).name).join(" + ")}</b><b>${money(t.price)}</b></div><a target="_blank" class="btn btn-copper" href="https://wa.me/${db.settings.phone}?text=${encodeURIComponent(`Olá! Confirme meu agendamento na PALAZZO STUDIO BARBER: ${booking.serviceIds.map((id) => service(id).name).join(" + ")}, dia ${dateBR(booking.date)} às ${booking.time}. Cliente: ${booking.name}.`)}">Enviar resumo pelo WhatsApp</a></div>`;
   }
   return `<div class="modal" id="booking-modal"><div class="modal-card"><div class="modal-head"><div><div class="eyebrow">PASSO ${Math.min(booking.step + 1, 4)} DE 4</div><h3 style="font-size:27px">${titles[booking.step]}</h3></div><button class="btn btn-ghost" data-close>✕</button></div><div class="modal-body"><div class="steps">${[0, 1, 2, 3].map((x) => `<i class="${x <= booking.step ? "on" : ""}"></i>`).join("")}</div>${body}${booking.step < 4 ? `${booking.step > 0 ? `<div class="summary"><span>${t.duration || 0} min · ${booking.serviceIds.length} serviço(s)</span><b>${money(t.price)}</b></div>` : ""}<div class="modal-actions"><button class="btn btn-outline" data-prev ${booking.step === 0 ? "disabled" : ""}>Voltar</button><button class="btn btn-dark" data-next>${booking.step === 3 ? "Confirmar agendamento" : "Continuar"}</button></div>` : ""}</div></div></div>`;
 }
@@ -350,7 +354,7 @@ const nav = [
   ["config", "Configurações"],
 ];
 function adminPage() {
-  return `<div class="admin"><div class="admin-shell"><aside class="sidebar"><div class="brand"><span class="mark" style="background:var(--copper)">BF</span><div>BarberFlow<small>MONTEIRO</small></div></div><nav class="nav">${nav.map((n) => `<button class="${adminTab === n[0] ? "active" : ""}" data-tab="${n[0]}">${n[1]}</button>`).join("")}<button data-public>↗ Página pública</button></nav></aside><main class="admin-main"><header class="admin-header"><div><div class="eyebrow">BARBEARIA MONTEIRO</div><h1>${nav.find((n) => n[0] === adminTab)[1]}</h1></div><button class="btn btn-dark" data-quick>+ Novo</button></header>${adminContent()}</main></div><nav class="mobile-nav">${nav.map((n) => `<button class="${adminTab === n[0] ? "active" : ""}" data-tab="${n[0]}">${n[1]}</button>`).join("")}</nav></div>`;
+  return `<div class="admin"><div class="admin-shell"><aside class="sidebar"><div class="brand"><img class="brand-logo" src="palazzo-logo.jpg" alt="Logo Palazzo"><div>PALAZZO<small>STUDIO BARBER</small></div></div><nav class="nav">${nav.map((n) => `<button class="${adminTab === n[0] ? "active" : ""}" data-tab="${n[0]}">${n[1]}</button>`).join("")}<button data-public>↗ Página pública</button><a class="btn btn-ghost" target="_blank" href="https://www.instagram.com/Palazzobarber_/">Instagram</a></nav></aside><main class="admin-main"><header class="admin-header"><div><div class="eyebrow">PALAZZO STUDIO BARBER</div><h1>${nav.find((n) => n[0] === adminTab)[1]}</h1></div><button class="btn btn-dark" data-quick>+ Novo</button></header>${adminContent()}</main></div><nav class="mobile-nav">${nav.map((n) => `<button class="${adminTab === n[0] ? "active" : ""}" data-tab="${n[0]}">${n[1]}</button>`).join("")}</nav></div>`;
 }
 function adminContent() {
   let revenue = db.cash
@@ -415,7 +419,7 @@ function adminContent() {
       birth = db.clients.filter(
         (c) => c.birth.slice(5, 7) === today().slice(5, 7),
       );
-    return `<div class="split"><section class="panel"><h3>🎂 Aniversariantes do mês</h3>${birth.map((c) => reminder(c, "Parabéns pelo seu aniversário! A Barbearia Monteiro deseja um dia incrível.")).join("") || '<div class="empty">Nenhum aniversariante.</div>'}</section><section class="panel"><h3>✂ Retorno há 20+ dias</h3>${stale.map((c) => reminder(c, `Olá, ${c.name}! Já está na hora de renovar o visual. Que tal agendar seu corte?`)).join("")}</section></div>`;
+    return `<div class="split"><section class="panel"><h3>🎂 Aniversariantes do mês</h3>${birth.map((c) => reminder(c, "Parabéns pelo seu aniversário! A PALAZZO STUDIO BARBER deseja um dia incrível.")).join("") || '<div class="empty">Nenhum aniversariante.</div>'}</section><section class="panel"><h3>✂ Retorno há 20+ dias</h3>${stale.map((c) => reminder(c, `Olá, ${c.name}! Já está na hora de renovar o visual. Que tal agendar seu corte?`)).join("")}</section></div>`;
   }
   if (adminTab === "servicos")
     return `<section class="panel"><div class="toolbar"><span class="muted">Nome, preço, duração e disponibilidade</span><button class="btn btn-dark" data-add-service>+ Serviço</button></div><div class="list-cards">${db.services.map((s) => `<div class="list-card"><span><b>${s.name}</b><br><small class="muted">${s.duration} min · ${money(s.price)}</small></span><span><button class="btn btn-ghost" data-edit-service="${s.id}">Editar</button><button class="badge ${s.active ? "green" : "red"}" data-toggle-service="${s.id}">${s.active ? "Ativo" : "Inativo"}</button><button class="btn btn-ghost danger" data-delete-service="${s.id}">Excluir</button></span></div>`).join("")}</div></section>`;
