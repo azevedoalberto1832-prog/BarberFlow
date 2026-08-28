@@ -158,6 +158,7 @@ let booking = {
   time: "",
   name: "",
   phone: "",
+  birth: "",
   notes: "",
 };
 let adminTab = "dashboard";
@@ -262,7 +263,7 @@ function confirmAdmin(message, action) {
   };
 }
 function publicPage() {
-  return `<header class="topbar"><div class="container"><div class="brand"><span class="mark">BF</span><div>Barbearia Monteiro<small>BARBERFLOW</small></div></div><div><a class="btn btn-outline" target="_blank" href="https://wa.me/${db.settings.phone}?text=${encodeURIComponent(db.settings.greeting)}">WhatsApp</a> <button class="btn btn-dark" data-book>Agendar agora</button></div></div></header><main><section class="hero"><div class="container hero-grid"><div><div class="eyebrow">Tradição no corte. Liberdade na agenda.</div><h1>Seu estilo, no seu horário.</h1><p>Escolha os serviços, veja os horários disponíveis e confirme em poucos passos. Sem espera, sem ligação.</p><div class="hero-actions"><button class="btn btn-copper" data-book>Escolher horário →</button><a class="btn btn-ghost" href="#servicos">Ver serviços</a></div></div><div class="hero-card"><div class="eyebrow">Próximos horários</div><h3 style="font-size:30px;margin:10px 0 15px">Amanhã</h3>${["09:00", "10:30", "14:00", "16:30"].map((x, i) => `<div class="slot"><span>${x}</span><b>${i % 2 ? "Rafael" : "João"}</b></div>`).join("")}</div></div></section><section class="section" id="servicos"><div class="container"><div class="section-head"><div><div class="eyebrow">Catálogo</div><h2>Serviços feitos com propósito</h2></div><p class="muted">Selecione um ou mais no agendamento.<br>O tempo é calculado automaticamente.</p></div><div class="service-grid">${db.services
+  return `<header class="topbar"><div class="container"><div class="brand"><span class="mark">BF</span><div>Barbearia Monteiro<small>BARBERFLOW</small></div></div><div><a class="btn btn-outline" target="_blank" href="https://wa.me/${db.settings.phone}?text=${encodeURIComponent(db.settings.greeting)}">WhatsApp</a> <button class="btn btn-dark" data-book>Iniciar agendamento</button></div></div></header><main><section class="hero"><div class="container"><div style="max-width:760px"><div class="eyebrow">Agendamento online</div><h1>Escolha seu serviço e reserve seu horário.</h1><p>Faça um cadastro rápido, selecione o atendimento e veja somente os horários realmente disponíveis.</p><div class="hero-actions"><button class="btn btn-copper" data-book>Iniciar agendamento →</button><a class="btn btn-ghost" href="#servicos">Ver serviços</a></div></div></div></section><section class="section" id="servicos"><div class="container"><div class="section-head"><div><div class="eyebrow">Serviços</div><h2>Escolha o seu atendimento</h2></div><p class="muted">Preço e duração atualizados.<br>Você pode combinar mais de um serviço.</p></div><div class="service-grid">${db.services
     .filter((s) => s.active)
     .map(
       (s) =>
@@ -270,7 +271,7 @@ function publicPage() {
     )
     .join(
       "",
-    )}</div></div></section><section class="section"><div class="container split"><div><div class="eyebrow">BarberFlow</div><h2>Uma experiência melhor dos dois lados do balcão.</h2></div><div><div class="feature"><strong>Agenda inteligente</strong><span class="muted">Horários livres calculados pela duração total, sem sobreposições.</span></div><div class="feature"><strong>Lembretes que trazem o cliente de volta</strong><span class="muted">Aniversários e retornos após 20 dias prontos para WhatsApp.</span></div><div class="feature"><strong>Gestão em um só lugar</strong><span class="muted">Clientes, caixa, serviços e rotina conectados.</span></div></div></div></section><section class="section"><div class="container"><div class="location"><div><div class="eyebrow">Onde estamos</div><h2 style="font-size:38px;margin:8px 0">Barbearia Monteiro</h2><p>${db.settings.address}</p></div><a class="btn btn-copper" target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(db.settings.address)}">Abrir no mapa</a></div></div></section></main><footer class="footer"><div class="container"><span>© BarberFlow — Demo Barbearia Monteiro</span><button class="btn btn-outline" data-admin>Área da barbearia</button></div></footer>`;
+    )}</div></div></section><section class="section"><div class="container"><div class="location"><div><div class="eyebrow">Endereço</div><h2 style="font-size:38px;margin:8px 0">Barbearia Monteiro</h2><p>${db.settings.address}</p></div><div><button class="btn btn-copper" data-book>Agendar agora</button> <a class="btn btn-outline" style="color:white" target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(db.settings.address)}">Abrir no mapa</a></div></div></div></section></main><footer class="footer"><div class="container"><span>© BarberFlow — Barbearia Monteiro</span><button class="btn btn-outline" data-admin>Área da barbearia</button></div></footer>`;
 }
 function availableSlots() {
   let dur = total().duration || 30,
@@ -302,14 +303,16 @@ function availableSlots() {
 function bookingModal() {
   let t = total(),
     titles = [
+      "Seu cadastro",
       "Escolha os serviços",
       "Quem vai atender?",
       "Data e horário",
-      "Seus dados",
       "Tudo certo!",
     ];
   let body = "";
   if (booking.step === 0)
+    body = `<div><p class="muted" style="margin-top:0">Informe seus dados para começar. Ao confirmar o horário, seu cadastro ficará disponível para a barbearia.</p><div class="form-grid"><label class="field"><span>Nome completo *</span><input id="book-name" value="${booking.name}" placeholder="Seu nome"></label><label class="field"><span>WhatsApp *</span><input id="book-phone" inputmode="tel" value="${booking.phone}" placeholder="(62) 99999-9999"></label><label class="field"><span>Data de nascimento</span><input id="book-birth" type="date" value="${booking.birth || ""}"></label><label class="field"><span>Observações</span><input id="book-notes" value="${booking.notes}" placeholder="Opcional"></label></div></div>`;
+  if (booking.step === 1)
     body = `<div class="choice-grid">${db.services
       .filter((s) => s.active)
       .map(
@@ -317,9 +320,9 @@ function bookingModal() {
           `<button class="choice ${booking.serviceIds.includes(s.id) ? "active" : ""}" data-select-service="${s.id}"><b>${s.name}</b><br><span class="muted">${s.duration} min · ${money(s.price)}</span></button>`,
       )
       .join("")}</div>`;
-  if (booking.step === 1)
-    body = `<div class="choice-grid"><button class="choice ${booking.professional === "any" ? "active" : ""}" data-prof="any"><b>Qualquer profissional</b><br><span class="muted">Primeiro horário disponível</span></button>${PEOPLE.map((p) => `<button class="choice ${booking.professional === p.id ? "active" : ""}" data-prof="${p.id}"><b>${p.name}</b><br><span class="muted">Barbeiro</span></button>`).join("")}</div>`;
   if (booking.step === 2)
+    body = `<div class="choice-grid"><button class="choice ${booking.professional === "any" ? "active" : ""}" data-prof="any"><b>Qualquer profissional</b><br><span class="muted">Primeiro horário disponível</span></button>${PEOPLE.map((p) => `<button class="choice ${booking.professional === p.id ? "active" : ""}" data-prof="${p.id}"><b>${p.name}</b><br><span class="muted">Barbeiro</span></button>`).join("")}</div>`;
+  if (booking.step === 3)
     body = `<div class="field" style="margin-bottom:20px"><label>Data</label><input id="book-date" type="date" min="${today()}" value="${booking.date}"></div><div class="slots">${
       availableSlots()
         .map(
@@ -328,13 +331,11 @@ function bookingModal() {
         )
         .join("") || '<div class="empty">Sem horários nesta data.</div>'
     }</div>`;
-  if (booking.step === 3)
-    body = `<div class="form-grid"><label class="field"><span>Nome *</span><input id="book-name" value="${booking.name}" placeholder="Seu nome"></label><label class="field"><span>WhatsApp *</span><input id="book-phone" value="${booking.phone}" placeholder="(62) 99999-9999"></label><label class="field full"><span>Observações</span><textarea id="book-notes" rows="3" placeholder="Alguma preferência?">${booking.notes}</textarea></label></div>`;
   if (booking.step === 4) {
     let p = PEOPLE.find((x) => x.id === booking.professional);
     body = `<div style="text-align:center;padding:22px"><div class="mark" style="margin:auto;background:var(--green);font-size:22px">✓</div><h2 style="margin:18px 0 8px">Agendamento confirmado</h2><p class="muted">${dateBR(booking.date)} às ${booking.time} · ${p?.name || "Profissional disponível"}</p><div class="summary"><b>${booking.serviceIds.map((id) => service(id).name).join(" + ")}</b><b>${money(t.price)}</b></div><a target="_blank" class="btn btn-copper" href="https://wa.me/${db.settings.phone}?text=${encodeURIComponent(`Olá! Confirme meu agendamento na Barbearia Monteiro: ${booking.serviceIds.map((id) => service(id).name).join(" + ")}, dia ${dateBR(booking.date)} às ${booking.time}. Cliente: ${booking.name}.`)}">Enviar resumo pelo WhatsApp</a></div>`;
   }
-  return `<div class="modal" id="booking-modal"><div class="modal-card"><div class="modal-head"><div><div class="eyebrow">PASSO ${Math.min(booking.step + 1, 4)} DE 4</div><h3 style="font-size:27px">${titles[booking.step]}</h3></div><button class="btn btn-ghost" data-close>✕</button></div><div class="modal-body"><div class="steps">${[0, 1, 2, 3].map((x) => `<i class="${x <= booking.step ? "on" : ""}"></i>`).join("")}</div>${body}${booking.step < 4 ? `<div class="summary"><span>${t.duration || 0} min · ${booking.serviceIds.length} serviço(s)</span><b>${money(t.price)}</b></div><div class="modal-actions"><button class="btn btn-outline" data-prev ${booking.step === 0 ? "disabled" : ""}>Voltar</button><button class="btn btn-dark" data-next>${booking.step === 3 ? "Confirmar" : "Continuar"}</button></div>` : ""}</div></div></div>`;
+  return `<div class="modal" id="booking-modal"><div class="modal-card"><div class="modal-head"><div><div class="eyebrow">PASSO ${Math.min(booking.step + 1, 4)} DE 4</div><h3 style="font-size:27px">${titles[booking.step]}</h3></div><button class="btn btn-ghost" data-close>✕</button></div><div class="modal-body"><div class="steps">${[0, 1, 2, 3].map((x) => `<i class="${x <= booking.step ? "on" : ""}"></i>`).join("")}</div>${body}${booking.step < 4 ? `${booking.step > 0 ? `<div class="summary"><span>${t.duration || 0} min · ${booking.serviceIds.length} serviço(s)</span><b>${money(t.price)}</b></div>` : ""}<div class="modal-actions"><button class="btn btn-outline" data-prev ${booking.step === 0 ? "disabled" : ""}>Voltar</button><button class="btn btn-dark" data-next>${booking.step === 3 ? "Confirmar agendamento" : "Continuar"}</button></div>` : ""}</div></div></div>`;
 }
 const nav = [
   ["dashboard", "Visão geral"],
@@ -356,14 +357,39 @@ function adminContent() {
       .filter((x) => x.type === "saida")
       .reduce((a, x) => a + x.value, 0);
   if (adminTab === "dashboard")
-    return `<div class="metrics"><div class="metric"><small>Faturamento hoje</small><b>${money(db.cash.filter((x) => x.type === "entrada" && x.date === today()).reduce((a, x) => a + x.value, 0))}</b></div><div class="metric"><small>Saldo do caixa</small><b>${money(revenue - expense)}</b></div><div class="metric"><small>Agendamentos</small><b>${db.appointments.length}</b></div><div class="metric"><small>Ticket médio</small><b>${money(revenue / Math.max(1, db.cash.filter((x) => x.type === "entrada").length))}</b></div></div><div class="split"><section class="panel"><h3>Faturamento — últimos 7 dias</h3><div class="chart">${[42, 68, 55, 82, 64, 92, 73].map((x, i) => `<div class="bar-col"><div class="bar" style="height:${x}%"></div>${["S", "T", "Q", "Q", "S", "S", "D"][i]}</div>`).join("")}</div></section><section class="panel"><h3>Próximos atendimentos</h3>${db.appointments
-      .filter((a) => a.status === "Agendado")
-      .slice(0, 4)
-      .map(
-        (a) =>
-          `<div class="list-card"><span><b>${a.time} · ${a.client}</b><br><small class="muted">${service(a.serviceIds[0])?.name}</small></span><span class="badge green">Agendado</span></div>`,
+    return `<div class="metrics"><div class="metric"><small>Faturamento hoje</small><b>${money(db.cash.filter((x) => x.type === "entrada" && x.date === today()).reduce((a, x) => a + x.value, 0))}</b></div><div class="metric"><small>Saldo do caixa</small><b>${money(revenue - expense)}</b></div><div class="metric"><small>Agendamentos</small><b>${db.appointments.length}</b></div><div class="metric"><small>Ticket médio</small><b>${money(revenue / Math.max(1, db.cash.filter((x) => x.type === "entrada").length))}</b></div></div><div class="split"><section class="panel"><h3>Faturamento — últimos 7 dias</h3><div class="chart">${[42, 68, 55, 82, 64, 92, 73].map((x, i) => `<div class="bar-col"><div class="bar" style="height:${x}%"></div>${["S", "T", "Q", "Q", "S", "S", "D"][i]}</div>`).join("")}</div></section><section class="panel"><h3>Próximos atendimentos</h3>${
+      db.appointments
+        .filter((a) => a.status === "Agendado")
+        .slice(0, 4)
+        .map(
+          (a) =>
+            `<div class="list-card"><span><b>${a.time} · ${a.client}</b><br><small class="muted">${service(a.serviceIds[0])?.name}</small></span><span class="badge green">Agendado</span></div>`,
+        )
+        .join("") || '<div class="empty">Nenhum atendimento agendado.</div>'
+    }<h3 style="margin-top:24px">Próximos horários livres</h3><div class="slots">${[
+      "09:00",
+      "09:30",
+      "10:00",
+      "10:30",
+      "11:00",
+      "13:00",
+      "13:30",
+      "14:00",
+    ]
+      .filter(
+        (time) =>
+          !db.appointments.some(
+            (a) =>
+              a.date === addDays(1) &&
+              a.time === time &&
+              a.status !== "Cancelado",
+          ),
       )
-      .join("")}</section></div>`;
+      .slice(0, 6)
+      .map((time) => `<span class="slot-btn">${time}</span>`)
+      .join(
+        "",
+      )}</div><small class="muted">Disponibilidade de amanhã para atendimentos de 30 min.</small></section></div>`;
   if (adminTab === "agenda")
     return `<section class="panel"><div class="toolbar"><input id="agenda-date" type="date" value="${agendaDate}"><button class="btn btn-dark" data-add-appt>+ Agendamento</button></div><div class="table-wrap"><table><thead><tr><th>Data/hora</th><th>Cliente</th><th>Serviço</th><th>Profissional</th><th>Status</th><th>Ações</th></tr></thead><tbody>${
       db.appointments
@@ -411,6 +437,7 @@ function bind() {
           time: "",
           name: "",
           phone: "",
+          birth: "",
           notes: "",
         };
         document.body.insertAdjacentHTML("beforeend", bookingModal());
@@ -457,6 +484,7 @@ function bind() {
       time: "",
       name: "",
       phone: "",
+      birth: "",
       notes: "",
     };
     document.body.insertAdjacentHTML("beforeend", bookingModal());
@@ -652,17 +680,20 @@ function bindBooking() {
     refreshModal();
   });
   modal.querySelector("[data-next]")?.addEventListener("click", () => {
-    if (booking.step === 0 && !booking.serviceIds.length)
-      return toast("Selecione ao menos um serviço");
-    if (booking.step === 2 && !booking.time) return toast("Escolha um horário");
-    if (booking.step === 3) {
+    if (booking.step === 0) {
       booking.name = modal.querySelector("#book-name").value.trim();
       booking.phone = modal
         .querySelector("#book-phone")
         .value.replace(/\D/g, "");
+      booking.birth = modal.querySelector("#book-birth").value;
       booking.notes = modal.querySelector("#book-notes").value;
       if (!booking.name || booking.phone.length < 10)
-        return toast("Preencha nome e WhatsApp");
+        return toast("Preencha seu nome e WhatsApp");
+    }
+    if (booking.step === 1 && !booking.serviceIds.length)
+      return toast("Selecione ao menos um serviço");
+    if (booking.step === 3 && !booking.time) return toast("Escolha um horário");
+    if (booking.step === 3) {
       let t = total(),
         prof =
           booking.professional === "any"
@@ -689,14 +720,19 @@ function bindBooking() {
         status: "Agendado",
         notes: booking.notes,
       });
-      if (!db.clients.some((c) => c.phone === booking.phone))
+      const existingClient = db.clients.find((c) => c.phone === booking.phone);
+      if (!existingClient)
         db.clients.push({
           id: uid(),
           name: booking.name,
           phone: booking.phone,
-          birth: "1990-01-01",
+          birth: booking.birth || "1990-01-01",
           lastVisit: today(),
         });
+      else {
+        existingClient.name = booking.name;
+        if (booking.birth) existingClient.birth = booking.birth;
+      }
       save();
     }
     booking.step++;
