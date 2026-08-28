@@ -182,6 +182,85 @@ const toast = (m) => {
   e.classList.add("show");
   setTimeout(() => e.classList.remove("show"), 2400);
 };
+function openAdminForm(kind, id = "") {
+  document.querySelector("#admin-form-modal")?.remove();
+  let title = "",
+    fields = "",
+    item;
+  if (kind === "client") {
+    item = db.clients.find((x) => x.id === id) || {
+      name: "",
+      phone: "",
+      birth: "1990-01-01",
+      lastVisit: today(),
+    };
+    title = id ? "Editar cliente" : "Novo cliente";
+    fields = `<label class="field"><span>Nome *</span><input name="name" value="${item.name}" required></label><label class="field"><span>WhatsApp *</span><input name="phone" value="${item.phone}" required></label><label class="field"><span>Nascimento</span><input name="birth" type="date" value="${item.birth}"></label><label class="field"><span>Última visita</span><input name="lastVisit" type="date" value="${item.lastVisit}"></label>`;
+  } else if (kind === "service") {
+    item = db.services.find((x) => x.id === id) || {
+      name: "",
+      price: 50,
+      duration: 30,
+      desc: "",
+    };
+    title = id ? "Editar serviço" : "Novo serviço";
+    fields = `<label class="field"><span>Nome *</span><input name="name" value="${item.name}" required></label><label class="field"><span>Preço *</span><input name="price" type="number" step="0.01" value="${item.price}" required></label><label class="field"><span>Duração (min) *</span><input name="duration" type="number" step="15" value="${item.duration}" required></label><label class="field full"><span>Descrição</span><textarea name="desc" rows="3">${item.desc || ""}</textarea></label>`;
+  } else {
+    title = "Nova movimentação";
+    fields = `<label class="field"><span>Descrição *</span><input name="desc" required></label><label class="field"><span>Tipo</span><select name="type"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></label><label class="field"><span>Valor *</span><input name="value" type="number" step="0.01" required></label><label class="field"><span>Categoria</span><select name="category">${db.categories.map((c) => `<option>${c}</option>`).join("")}</select></label><label class="field"><span>Método</span><select name="method"><option>Pix</option><option>Dinheiro</option><option>Cartão</option></select></label><label class="field"><span>Data</span><input name="date" type="date" value="${today()}"></label>`;
+  }
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `<div class="modal" id="admin-form-modal"><div class="modal-card" style="max-width:620px"><div class="modal-head"><div><div class="eyebrow">BARBERFLOW</div><h3 style="font-size:27px">${title}</h3></div><button type="button" class="btn btn-ghost" data-form-close>✕</button></div><form class="modal-body" id="admin-form"><div class="form-grid">${fields}</div><div class="modal-actions"><button type="button" class="btn btn-outline" data-form-close>Cancelar</button><button class="btn btn-dark" type="submit">Salvar</button></div></form></div></div>`,
+  );
+  document
+    .querySelectorAll("[data-form-close]")
+    .forEach(
+      (x) =>
+        (x.onclick = () =>
+          document.querySelector("#admin-form-modal")?.remove()),
+    );
+  document.querySelector("#admin-form").onsubmit = (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const value = Object.fromEntries(form.entries());
+    if (kind === "client") {
+      if (id) Object.assign(item, value);
+      else db.clients.unshift({ id: uid(), ...value });
+    }
+    if (kind === "service") {
+      const data = {
+        ...value,
+        price: Number(value.price),
+        duration: Number(value.duration),
+      };
+      if (id) Object.assign(item, data);
+      else db.services.push({ id: uid(), ...data, active: true });
+    }
+    if (kind === "cash")
+      db.cash.unshift({ id: uid(), ...value, value: Number(value.value) });
+    save();
+    document.querySelector("#admin-form-modal")?.remove();
+    render();
+    toast("Alteração salva");
+  };
+}
+function confirmAdmin(message, action) {
+  document.querySelector("#admin-confirm")?.remove();
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `<div class="modal" id="admin-confirm"><div class="modal-card" style="max-width:440px"><div class="modal-body"><h3 style="font-size:27px">Confirmar exclusão</h3><p class="muted">${message}</p><div class="modal-actions"><button class="btn btn-outline" data-confirm-no>Cancelar</button><button class="btn btn-dark danger" data-confirm-yes>Excluir</button></div></div></div></div>`,
+  );
+  document.querySelector("[data-confirm-no]").onclick = () =>
+    document.querySelector("#admin-confirm").remove();
+  document.querySelector("[data-confirm-yes]").onclick = () => {
+    action();
+    document.querySelector("#admin-confirm").remove();
+    save();
+    render();
+    toast("Item excluído");
+  };
+}
 function publicPage() {
   return `<header class="topbar"><div class="container"><div class="brand"><span class="mark">BF</span><div>Barbearia Monteiro<small>BARBERFLOW</small></div></div><div><a class="btn btn-outline" target="_blank" href="https://wa.me/${db.settings.phone}?text=${encodeURIComponent(db.settings.greeting)}">WhatsApp</a> <button class="btn btn-dark" data-book>Agendar agora</button></div></div></header><main><section class="hero"><div class="container hero-grid"><div><div class="eyebrow">Tradição no corte. Liberdade na agenda.</div><h1>Seu estilo, no seu horário.</h1><p>Escolha os serviços, veja os horários disponíveis e confirme em poucos passos. Sem espera, sem ligação.</p><div class="hero-actions"><button class="btn btn-copper" data-book>Escolher horário →</button><a class="btn btn-ghost" href="#servicos">Ver serviços</a></div></div><div class="hero-card"><div class="eyebrow">Próximos horários</div><h3 style="font-size:30px;margin:10px 0 15px">Amanhã</h3>${["09:00", "10:30", "14:00", "16:30"].map((x, i) => `<div class="slot"><span>${x}</span><b>${i % 2 ? "Rafael" : "João"}</b></div>`).join("")}</div></div></section><section class="section" id="servicos"><div class="container"><div class="section-head"><div><div class="eyebrow">Catálogo</div><h2>Serviços feitos com propósito</h2></div><p class="muted">Selecione um ou mais no agendamento.<br>O tempo é calculado automaticamente.</p></div><div class="service-grid">${db.services
     .filter((s) => s.active)
@@ -416,119 +495,49 @@ function bind() {
       render();
     }),
   );
-  document.querySelector("[data-add-cash]")?.addEventListener("click", () => {
-    let desc = prompt("Descrição da movimentação:");
-    if (!desc) return;
-    let type = prompt("Tipo: entrada ou saida?", "entrada");
-    let value = Number(prompt("Valor:", "50")?.replace(",", "."));
-    let category = prompt(
-      `Categoria: ${db.categories.join(", ")}`,
-      type === "saida" ? "Insumos" : "Serviços",
-    );
-    let method = prompt("Método: Pix, Dinheiro ou Cartão", "Pix");
-    db.cash.unshift({
-      id: uid(),
-      type: type === "saida" ? "saida" : "entrada",
-      desc,
-      value: value || 0,
-      category: category || (type === "saida" ? "Insumos" : "Serviços"),
-      date: today(),
-      method: method || "Pix",
-    });
-    save();
-    render();
-    toast("Movimentação registrada");
-  });
-  document.querySelector("[data-add-client]")?.addEventListener("click", () => {
-    let name = prompt("Nome do cliente:");
-    if (!name) return;
-    let phone = prompt("WhatsApp:", "62");
-    db.clients.unshift({
-      id: uid(),
-      name,
-      phone,
-      birth: "1990-01-01",
-      lastVisit: today(),
-    });
-    save();
-    render();
-  });
+  document
+    .querySelector("[data-add-cash]")
+    ?.addEventListener("click", () => openAdminForm("cash"));
+  document
+    .querySelector("[data-add-client]")
+    ?.addEventListener("click", () => openAdminForm("client"));
   document.querySelectorAll("[data-edit-client]").forEach((x) =>
     x.addEventListener("click", () => {
-      const c = db.clients.find((c) => c.id === x.dataset.editClient);
-      const name = prompt("Nome do cliente:", c.name);
-      if (!name) return;
-      c.name = name;
-      c.phone = prompt("WhatsApp:", c.phone) || c.phone;
-      c.birth = prompt("Nascimento (AAAA-MM-DD):", c.birth) || c.birth;
-      c.lastVisit =
-        prompt("Última visita (AAAA-MM-DD):", c.lastVisit) || c.lastVisit;
-      save();
-      render();
-      toast("Cliente atualizado");
+      openAdminForm("client", x.dataset.editClient);
     }),
   );
   document.querySelectorAll("[data-delete-client]").forEach((x) =>
     x.addEventListener("click", () => {
-      if (confirm("Excluir este cliente?")) {
+      confirmAdmin("O cadastro será removido da lista de clientes.", () => {
         db.clients = db.clients.filter((c) => c.id !== x.dataset.deleteClient);
-        save();
-        render();
-      }
+      });
     }),
   );
   document
     .querySelector("[data-add-service]")
-    ?.addEventListener("click", () => {
-      let name = prompt("Nome do serviço:");
-      if (!name) return;
-      let price = Number(prompt("Preço:", "50"));
-      let duration = Number(prompt("Duração em minutos:", "30"));
-      db.services.push({
-        id: uid(),
-        name,
-        price,
-        duration,
-        active: true,
-        desc: "Novo serviço",
-      });
-      save();
-      render();
-    });
+    ?.addEventListener("click", () => openAdminForm("service"));
   document.querySelectorAll("[data-edit-service]").forEach((x) =>
     x.addEventListener("click", () => {
-      const s = service(x.dataset.editService);
-      const name = prompt("Nome do serviço:", s.name);
-      if (!name) return;
-      s.name = name;
-      s.price =
-        Number(prompt("Preço:", String(s.price))?.replace(",", ".")) || s.price;
-      s.duration =
-        Number(prompt("Duração em minutos:", String(s.duration))) || s.duration;
-      s.desc = prompt("Descrição:", s.desc || "") ?? s.desc;
-      save();
-      render();
-      toast("Serviço atualizado");
+      openAdminForm("service", x.dataset.editService);
     }),
   );
   document.querySelectorAll("[data-delete-service]").forEach((x) =>
     x.addEventListener("click", () => {
-      if (confirm("Excluir este serviço?")) {
+      confirmAdmin("O serviço deixará de aparecer no catálogo.", () => {
         db.services = db.services.filter(
           (s) => s.id !== x.dataset.deleteService,
         );
-        save();
-        render();
-      }
+      });
     }),
   );
   document.querySelectorAll("[data-delete-cash]").forEach((x) =>
     x.addEventListener("click", () => {
-      if (confirm("Excluir esta movimentação?")) {
-        db.cash = db.cash.filter((m) => m.id !== x.dataset.deleteCash);
-        save();
-        render();
-      }
+      confirmAdmin(
+        "A movimentação será removida e o saldo recalculado.",
+        () => {
+          db.cash = db.cash.filter((m) => m.id !== x.dataset.deleteCash);
+        },
+      );
     }),
   );
   document
