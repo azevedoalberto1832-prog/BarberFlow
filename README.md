@@ -2,7 +2,7 @@
 
 **Chrona** é uma plataforma única de agendamento e gestão para negócios que trabalham com atendimento por horário.
 
-A **PALAZZO STUDIO BARBER** é o primeiro tenant real. Sua identidade permanece na página pública, enquanto infraestrutura, autenticação, planos e administração pertencem à Chrona.
+A **PALAZZO STUDIO BARBER** é o primeiro tenant real e a **Nayara Lash Designer** é o tenant fictício de validação multi-segmento. Cada identidade permanece na página pública, enquanto infraestrutura, autenticação, planos e administração pertencem à Chrona.
 
 ## Funcionalidades
 
@@ -17,7 +17,7 @@ A **PALAZZO STUDIO BARBER** é o primeiro tenant real. Sua identidade permanece 
 
 ## Arquitetura e evolução
 
-A aplicação usa um único banco multi-tenant no Supabase. Cada registro operacional pertence a um estabelecimento e as políticas RLS aplicam o isolamento no banco. A Palazzo é o primeiro tenant; o próximo marco é validar um tenant de Lash sem alterar o código da aplicação. CRM e automação oficial de WhatsApp entram somente depois dessa validação.
+A aplicação usa um único banco multi-tenant no Supabase. Cada registro operacional pertence a um estabelecimento e as políticas RLS aplicam o isolamento no banco. O tenant público é selecionado por `?tenant=<slug>`; Palazzo e Nayara usam o mesmo código e dados isolados. CRM e automação oficial de WhatsApp entram somente depois dessa validação.
 
 ## Execução local
 
