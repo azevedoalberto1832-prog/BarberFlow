@@ -1,3 +1,16 @@
+const SUPABASE_URL = "https://qcjjqdkjfvnbslbpnrgk.supabase.co";
+const SUPABASE_KEY = "sb_publishable_27mV2bABNSGQYPkGEF-T4g_XBQtb2r7";
+const SHOP_SLUG = location.pathname.split("/").filter(Boolean).at(-1) === "palazzo" ? "palazzo" : "palazzo";
+async function rpc(name, body) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.message || data?.hint || "Não foi possível concluir a operação");
+  return data;
+}
 const SERVICES = [
   {
     id: "corte",
@@ -40,7 +53,7 @@ const SERVICES = [
     desc: "Detalhe que transforma o resultado.",
   },
 ];
-const PEOPLE = [
+let PEOPLE = [
   { id: "joao", name: "João Monteiro" },
   { id: "rafael", name: "Rafael Lima" },
 ];
@@ -147,9 +160,7 @@ const seed = {
       "Olá! Bem-vindo à PALAZZO STUDIO BARBER. Agende seu horário pelo nosso sistema oficial.",
   },
 };
-let db =
-  JSON.parse(localStorage.getItem("barberflow-demo") || "null") ||
-  structuredClone(seed);
+let db = structuredClone({ ...seed, services: [], people: [], clients: [], appointments: [], cash: [] });
 db.settings.shop = "PALAZZO STUDIO BARBER";
 db.settings.phone = "5565992788465";
 db.settings.greeting =
@@ -167,11 +178,13 @@ let booking = {
   clientId: "",
   lookupDone: false,
   adminMode: false,
+  optIn: false,
 };
 let adminTab = "dashboard";
 let cashTab = "movimentos";
 let agendaDate = addDays(1);
-const save = () => localStorage.setItem("barberflow-demo", JSON.stringify(db));
+const save = () => {};
+let remoteSlots = [], slotProfessionals = {}, slotsLoaded = false;
 const money = (v) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const dateBR = (d) => new Date(d + "T12:00").toLocaleDateString("pt-BR");
@@ -269,6 +282,27 @@ function confirmAdmin(message, action) {
     toast("Item excluído");
   };
 }
+async function loadPublicData() {
+  try {
+    const payload = await rpc("get_public_shop", { shop_slug: SHOP_SLUG });
+    if (!payload?.shop) throw new Error("Barbearia indisponível");
+    const shop = payload.shop;
+    db.services = (payload.services || []).map((s) => ({ id:s.id, name:s.name, desc:s.description, duration:s.duration_minutes, price:Number(s.price), active:s.active }));
+    PEOPLE = (payload.professionals || []).map((p) => ({ id:p.id, name:p.name }));
+    db.settings = { shop:shop.name, address:shop.address || "Endereço a confirmar", phone:shop.phone || "", open:shop.opening_time?.slice(0,5) || "09:00", close:shop.closing_time?.slice(0,5) || "19:00", breakStart:shop.break_start?.slice(0,5) || "", breakEnd:shop.break_end?.slice(0,5) || "", greeting:shop.whatsapp_message || "Olá! Agende seu horário pelo BarberFlow.", instagram:shop.instagram || "" };
+    render();
+  } catch (error) {
+    app.innerHTML = `<main class="section"><div class="container empty"><h2>Não foi possível carregar a agenda</h2><p>${error.message}</p><button class="btn btn-dark" onclick="location.reload()">Tentar novamente</button></div></main>`;
+  }
+}
+async function loadAvailableSlots() {
+  remoteSlots=[]; slotProfessionals={}; slotsLoaded=false;
+  const people = booking.professional === "any" ? PEOPLE : PEOPLE.filter((p)=>p.id===booking.professional);
+  const results = await Promise.all(people.map(async (p) => ({ p, slots: await rpc("get_available_slots", { shop_slug:SHOP_SLUG, professional:p.id, service_ids:booking.serviceIds, appt_date:booking.date }) })));
+  results.forEach(({p,slots}) => (slots || []).forEach((row) => { const value=String(row.slot).slice(0,5); slotProfessionals[value] ||= p.id; }));
+  remoteSlots=Object.keys(slotProfessionals).sort();
+  slotsLoaded=true;
+}
 function publicPage() {
   return `<header class="topbar"><div class="container"><div class="brand"><img class="brand-logo" src="palazzo-logo.jpg" alt="Logo Palazzo"><div>PALAZZO<small>STUDIO BARBER</small></div></div><div><a class="btn btn-outline" target="_blank" href="https://www.instagram.com/Palazzobarber_/">Instagram</a> <a class="btn btn-outline" target="_blank" href="https://wa.me/${db.settings.phone}?text=${encodeURIComponent(db.settings.greeting)}">WhatsApp</a> <button class="btn btn-dark" data-book>Agendar horário</button></div></div></header><main><section class="hero"><div class="container hero-grid"><div><div class="eyebrow">Sistema oficial de agendamento</div><h1>PALAZZO</h1><h2 style="letter-spacing:.3em;color:var(--copper2);margin:12px 0 24px">STUDIO BARBER</h2><p>Faça um cadastro rápido, escolha seu serviço e veja somente os horários realmente disponíveis.</p><div class="hero-actions"><button class="btn btn-copper" data-book>Agendar horário →</button><a class="btn btn-outline" target="_blank" href="https://www.instagram.com/Palazzobarber_/">@Palazzobarber_</a><a class="btn btn-outline" target="_blank" href="https://wa.me/${db.settings.phone}?text=${encodeURIComponent(db.settings.greeting)}">WhatsApp</a></div></div><img class="hero-logo" src="palazzo-logo.jpg" alt="PALAZZO Studio Barber"></div></section><section class="section" id="servicos"><div class="container"><div class="section-head"><div><div class="eyebrow">Serviços</div><h2>Escolha o seu atendimento</h2></div><p class="muted">Preço e duração atualizados.<br>Você pode combinar mais de um serviço.</p></div><div class="service-grid">${db.services
     .filter((s) => s.active)
@@ -281,6 +315,7 @@ function publicPage() {
     )}</div></div></section><section class="section"><div class="container"><div class="location"><div><div class="eyebrow">Endereço</div><h2 style="font-size:38px;margin:8px 0">PALAZZO STUDIO BARBER</h2><p>${db.settings.address}</p></div><div><button class="btn btn-copper" data-book>Agendar horário</button> <a class="btn btn-outline" target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(db.settings.address)}">Abrir no mapa</a></div></div></div></section></main><footer class="footer"><div class="container"><span>© PALAZZO STUDIO BARBER</span><div><a class="btn btn-ghost" target="_blank" href="https://www.instagram.com/Palazzobarber_/">@Palazzobarber_</a><button class="btn btn-outline" data-admin>Área da barbearia</button></div></div></footer>`;
 }
 function availableSlots() {
+  if (slotsLoaded) return remoteSlots;
   let dur = total().duration || 30,
     out = [];
   for (let h = 9 * 60; h + dur <= 19 * 60; h += 15) {
@@ -318,7 +353,7 @@ function bookingModal() {
     ];
   let body = "";
   if (booking.step === 0)
-    body = `<div>${booking.adminMode ? `<div class="field" style="margin-bottom:22px"><span>Selecionar cliente cadastrado</span><div style="display:flex;gap:10px"><select id="admin-client" style="flex:1"><option value="">Escolha pelo nome ou WhatsApp</option>${db.clients.map((c) => `<option value="${c.id}" ${booking.clientId === c.id ? "selected" : ""}>${c.name} · ${c.phone}</option>`).join("")}</select><button class="btn btn-dark" type="button" data-use-client>Usar cliente</button></div></div><div class="eyebrow" style="margin:20px 0">OU CADASTRAR NOVO</div>` : '<p class="muted" style="margin-top:0">Digite seu WhatsApp. Se você já for cliente, recuperamos seu cadastro automaticamente.</p>'}<div class="form-grid"><label class="field"><span>WhatsApp *</span><input id="book-phone" inputmode="tel" value="${booking.phone}" placeholder="(62) 99999-9999"></label><div class="field"><span>&nbsp;</span><button class="btn btn-outline" type="button" data-find-client>Buscar cadastro</button></div>${booking.lookupDone ? (booking.clientId ? `<div class="field full"><div class="summary"><span>Bem-vindo novamente, <b>${booking.name}</b></span><span class="badge green">Cadastro encontrado</span></div></div>` : `<label class="field"><span>Nome completo *</span><input id="book-name" value="${booking.name}" placeholder="Seu nome"></label><label class="field"><span>Data de nascimento</span><input id="book-birth" type="date" value="${booking.birth || ""}"></label>`) : ""}<label class="field full"><span>Observações</span><input id="book-notes" value="${booking.notes}" placeholder="Opcional"></label></div></div>`;
+    body = `<div>${booking.adminMode ? `<div class="field" style="margin-bottom:22px"><span>Selecionar cliente cadastrado</span><div style="display:flex;gap:10px"><select id="admin-client" style="flex:1"><option value="">Escolha pelo nome ou WhatsApp</option>${db.clients.map((c) => `<option value="${c.id}" ${booking.clientId === c.id ? "selected" : ""}>${c.name} · ${c.phone}</option>`).join("")}</select><button class="btn btn-dark" type="button" data-use-client>Usar cliente</button></div></div><div class="eyebrow" style="margin:20px 0">OU CADASTRAR NOVO</div>` : '<p class="muted" style="margin-top:0">Informe seu WhatsApp. O sistema atualiza o mesmo cadastro nas próximas visitas, evitando duplicidade.</p>'}<div class="form-grid"><label class="field"><span>WhatsApp *</span><input id="book-phone" inputmode="tel" value="${booking.phone}" placeholder="(62) 99999-9999"></label><div class="field"><span>&nbsp;</span><button class="btn btn-outline" type="button" data-find-client>Continuar</button></div>${booking.lookupDone ? (booking.clientId ? `<div class="field full"><div class="summary"><span>Bem-vindo novamente, <b>${booking.name}</b></span><span class="badge green">Cadastro encontrado</span></div></div>` : `<label class="field"><span>Nome completo *</span><input id="book-name" value="${booking.name}" placeholder="Seu nome"></label><label class="field"><span>Data de nascimento</span><input id="book-birth" type="date" value="${booking.birth || ""}"></label>`) : ""}<label class="field full"><span>Observações</span><input id="book-notes" value="${booking.notes}" placeholder="Opcional"></label><label class="field full"><span><input id="book-optin" type="checkbox" ${booking.optIn ? "checked" : ""}> Aceito receber lembretes e comunicações da barbearia pelo WhatsApp.</span></label></div></div>`;
   if (booking.step === 1)
     body = `<div class="choice-grid">${db.services
       .filter((s) => s.active)
@@ -449,6 +484,7 @@ function bind() {
           clientId: "",
           lookupDone: false,
           adminMode: false,
+          optIn: false,
         };
         document.body.insertAdjacentHTML("beforeend", bookingModal());
         bindBooking();
@@ -499,6 +535,7 @@ function bind() {
       clientId: "",
       lookupDone: false,
       adminMode: true,
+      optIn: false,
     };
     document.body.insertAdjacentHTML("beforeend", bookingModal());
     bindBooking();
@@ -688,6 +725,7 @@ function bindBooking() {
   modal.querySelectorAll("[data-select-service]").forEach(
     (x) =>
       (x.onclick = () => {
+        slotsLoaded = false;
         booking.serviceIds = booking.serviceIds.includes(
           x.dataset.selectService,
         )
@@ -699,6 +737,7 @@ function bindBooking() {
   modal.querySelectorAll("[data-prof]").forEach(
     (x) =>
       (x.onclick = () => {
+        slotsLoaded = false;
         booking.professional = x.dataset.prof;
         refreshModal();
       }),
@@ -710,16 +749,17 @@ function bindBooking() {
         refreshModal();
       }),
   );
-  modal.querySelector("#book-date")?.addEventListener("change", (e) => {
+  modal.querySelector("#book-date")?.addEventListener("change", async (e) => {
     booking.date = e.target.value;
     booking.time = "";
+    await loadAvailableSlots().catch((error) => toast(error.message));
     refreshModal();
   });
   modal.querySelector("[data-prev]")?.addEventListener("click", () => {
     booking.step--;
     refreshModal();
   });
-  modal.querySelector("[data-next]")?.addEventListener("click", () => {
+  modal.querySelector("[data-next]")?.addEventListener("click", async () => {
     if (booking.step === 0) {
       booking.phone = modal
         .querySelector("#book-phone")
@@ -734,53 +774,26 @@ function bindBooking() {
       booking.birth =
         modal.querySelector("#book-birth")?.value || booking.birth;
       booking.notes = modal.querySelector("#book-notes").value;
+      booking.optIn = modal.querySelector("#book-optin")?.checked || false;
       if (!booking.name || booking.phone.length < 10)
         return toast("Preencha seu nome e WhatsApp");
     }
     if (booking.step === 1 && !booking.serviceIds.length)
       return toast("Selecione ao menos um serviço");
+    if (booking.step === 2) {
+      try { await loadAvailableSlots(); }
+      catch (error) { return toast(error.message); }
+    }
     if (booking.step === 3 && !booking.time) return toast("Escolha um horário");
     if (booking.step === 3) {
-      let t = total(),
-        prof =
-          booking.professional === "any"
-            ? PEOPLE.find(
-                (p) =>
-                  !db.appointments.some(
-                    (a) =>
-                      a.date === booking.date &&
-                      a.time === booking.time &&
-                      a.professional === p.id,
-                  ),
-              )?.id || "joao"
-            : booking.professional;
-      db.appointments.push({
-        id: uid(),
-        client: booking.name,
-        phone: booking.phone,
-        serviceIds: [...booking.serviceIds],
-        professional: prof,
-        date: booking.date,
-        time: booking.time,
-        duration: t.duration,
-        total: t.price,
-        status: "Agendado",
-        notes: booking.notes,
-      });
-      const existingClient = db.clients.find((c) => c.phone === booking.phone);
-      if (!existingClient)
-        db.clients.push({
-          id: uid(),
-          name: booking.name,
-          phone: booking.phone,
-          birth: booking.birth || "1990-01-01",
-          lastVisit: today(),
-        });
-      else {
-        existingClient.name = booking.name;
-        if (booking.birth) existingClient.birth = booking.birth;
+      const prof = booking.professional === "any" ? slotProfessionals[booking.time] : booking.professional;
+      try {
+        await rpc("create_public_appointment", { shop_slug:SHOP_SLUG, client_name:booking.name, client_phone:booking.phone, client_birth:booking.birth || null, opt_in:booking.optIn, professional:prof, service_ids:booking.serviceIds, appt_date:booking.date, appt_start:booking.time, appt_notes:booking.notes || null });
+      } catch (error) {
+        await loadAvailableSlots().catch(() => {});
+        refreshModal();
+        return toast(error.message);
       }
-      save();
     }
     booking.step++;
     refreshModal();
@@ -791,4 +804,5 @@ function refreshModal() {
   bindBooking();
 }
 window.addEventListener("hashchange", render);
-render();
+app.innerHTML = `<main class="section"><div class="container empty"><h2>Carregando agenda…</h2><p>Buscando serviços e horários disponíveis.</p></div></main>`;
+loadPublicData();
