@@ -232,7 +232,7 @@ function openAdminForm(kind, id = "") {
   }
   document.body.insertAdjacentHTML(
     "beforeend",
-    `<div class="modal" id="admin-form-modal"><div class="modal-card" style="max-width:620px"><div class="modal-head"><div><div class="eyebrow">BARBERFLOW</div><h3 style="font-size:27px">${title}</h3></div><button type="button" class="btn btn-ghost" data-form-close>✕</button></div><form class="modal-body" id="admin-form"><div class="form-grid">${fields}</div><div class="modal-actions"><button type="button" class="btn btn-outline" data-form-close>Cancelar</button><button class="btn btn-dark" type="submit">Salvar</button></div></form></div></div>`,
+    `<div class="modal" id="admin-form-modal"><div class="modal-card" style="max-width:620px"><div class="modal-head"><div><div class="eyebrow">CHRONA</div><h3 style="font-size:27px">${title}</h3></div><button type="button" class="btn btn-ghost" data-form-close>✕</button></div><form class="modal-body" id="admin-form"><div class="form-grid">${fields}</div><div class="modal-actions"><button type="button" class="btn btn-outline" data-form-close>Cancelar</button><button class="btn btn-dark" type="submit">Salvar</button></div></form></div></div>`,
   );
   document
     .querySelectorAll("[data-form-close]")
@@ -289,7 +289,7 @@ async function loadPublicData() {
     const shop = payload.shop;
     db.services = (payload.services || []).map((s) => ({ id:s.id, name:s.name, desc:s.description, duration:s.duration_minutes, price:Number(s.price), active:s.active }));
     PEOPLE = (payload.professionals || []).map((p) => ({ id:p.id, name:p.name }));
-    db.settings = { shop:shop.name, address:shop.address || "Endereço a confirmar", phone:shop.phone || "", open:shop.opening_time?.slice(0,5) || "09:00", close:shop.closing_time?.slice(0,5) || "19:00", breakStart:shop.break_start?.slice(0,5) || "", breakEnd:shop.break_end?.slice(0,5) || "", greeting:shop.whatsapp_message || "Olá! Agende seu horário pelo BarberFlow.", instagram:shop.instagram || "" };
+    db.settings = { shop:shop.name, address:shop.address || "Endereço a confirmar", phone:shop.phone || "", open:shop.opening_time?.slice(0,5) || "09:00", close:shop.closing_time?.slice(0,5) || "19:00", breakStart:shop.break_start?.slice(0,5) || "", breakEnd:shop.break_end?.slice(0,5) || "", greeting:shop.whatsapp_message || "Olá! Agende seu horário pela Chrona.", instagram:shop.instagram || "" };
     render();
   } catch (error) {
     app.innerHTML = `<main class="section"><div class="container empty"><h2>Não foi possível carregar a agenda</h2><p>${error.message}</p><button class="btn btn-dark" onclick="location.reload()">Tentar novamente</button></div></main>`;

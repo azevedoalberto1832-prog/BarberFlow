@@ -1,6 +1,8 @@
-# PALAZZO STUDIO BARBER — BarberFlow
+# Chrona — SaaS multi-tenant de agendamento
 
-Demo pública de agendamento e gestão personalizada para a **PALAZZO STUDIO BARBER**.
+**Chrona** é uma plataforma única de agendamento e gestão para negócios que trabalham com atendimento por horário.
+
+A **PALAZZO STUDIO BARBER** é o primeiro tenant real. Sua identidade permanece na página pública, enquanto infraestrutura, autenticação, planos e administração pertencem à Chrona.
 
 ## Funcionalidades
 
