@@ -1,15 +1,22 @@
 const SUPABASE_URL = "https://qcjjqdkjfvnbslbpnrgk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_27mV2bABNSGQYPkGEF-T4g_XBQtb2r7";
 const SHOP_SLUG = location.pathname.split("/").filter(Boolean).at(-1) === "palazzo" ? "palazzo" : "palazzo";
+let authSession = JSON.parse(sessionStorage.getItem("chrona-session") || "null");
 async function rpc(name, body) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
     method: "POST",
-    headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+    headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", ...(authSession?.access_token ? { Authorization:`Bearer ${authSession.access_token}` } : {}) },
     body: JSON.stringify(body),
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new Error(data?.message || data?.hint || "Não foi possível concluir a operação");
   return data;
+}
+async function signIn(email,password) {
+  const response=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{method:"POST",headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email,password})});
+  const data=await response.json();
+  if(!response.ok) throw new Error(data.error_description || data.msg || "E-mail ou senha inválidos");
+  authSession=data; sessionStorage.setItem("chrona-session",JSON.stringify(data)); return data;
 }
 const SERVICES = [
   {
@@ -314,6 +321,7 @@ function publicPage() {
       "",
     )}</div></div></section><section class="section"><div class="container"><div class="location"><div><div class="eyebrow">Endereço</div><h2 style="font-size:38px;margin:8px 0">PALAZZO STUDIO BARBER</h2><p>${db.settings.address}</p></div><div><button class="btn btn-copper" data-book>Agendar horário</button> <a class="btn btn-outline" target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(db.settings.address)}">Abrir no mapa</a></div></div></div></section></main><footer class="footer"><div class="container"><span>© PALAZZO STUDIO BARBER</span><div><a class="btn btn-ghost" target="_blank" href="https://www.instagram.com/Palazzobarber_/">@Palazzobarber_</a><button class="btn btn-outline" data-admin>Área da barbearia</button></div></div></footer>`;
 }
+function loginPage(){return `<main class="section"><div class="container"><section class="panel" style="max-width:460px;margin:7vh auto"><div class="eyebrow">CHRONA</div><h2>Acesso da empresa</h2><p class="muted">Entre com a conta vinculada ao seu estabelecimento.</p><form id="login-form"><label class="field"><span>E-mail</span><input name="email" type="email" autocomplete="username" required></label><label class="field"><span>Senha</span><input name="password" type="password" autocomplete="current-password" required></label><div class="modal-actions"><button type="button" class="btn btn-outline" data-public>Voltar</button><button class="btn btn-dark" type="submit">Entrar</button></div></form></section></div></main>`}
 function availableSlots() {
   if (slotsLoaded) return remoteSlots;
   let dur = total().duration || 30,
@@ -389,7 +397,7 @@ const nav = [
   ["config", "Configurações"],
 ];
 function adminPage() {
-  return `<div class="admin"><div class="admin-shell"><aside class="sidebar"><div class="brand"><img class="brand-logo" src="palazzo-logo.jpg" alt="Logo Palazzo"><div>PALAZZO<small>STUDIO BARBER</small></div></div><nav class="nav">${nav.map((n) => `<button class="${adminTab === n[0] ? "active" : ""}" data-tab="${n[0]}">${n[1]}</button>`).join("")}<button data-public>↗ Página pública</button><a class="btn btn-ghost" target="_blank" href="https://www.instagram.com/Palazzobarber_/">Instagram</a></nav></aside><main class="admin-main"><header class="admin-header"><div><div class="eyebrow">PALAZZO STUDIO BARBER</div><h1>${nav.find((n) => n[0] === adminTab)[1]}</h1></div><button class="btn btn-dark" data-quick>+ Novo</button></header>${adminContent()}</main></div><nav class="mobile-nav">${nav.map((n) => `<button class="${adminTab === n[0] ? "active" : ""}" data-tab="${n[0]}">${n[1]}</button>`).join("")}</nav></div>`;
+  return `<div class="admin"><div class="admin-shell"><aside class="sidebar"><div class="brand"><img class="brand-logo" src="palazzo-logo.jpg" alt="Logo Palazzo"><div>PALAZZO<small>STUDIO BARBER</small></div></div><nav class="nav">${nav.map((n) => `<button class="${adminTab === n[0] ? "active" : ""}" data-tab="${n[0]}">${n[1]}</button>`).join("")}<button data-public>↗ Página pública</button><button data-logout>Sair</button><a class="btn btn-ghost" target="_blank" href="https://www.instagram.com/Palazzobarber_/">Instagram</a></nav></aside><main class="admin-main"><header class="admin-header"><div><div class="eyebrow">PALAZZO STUDIO BARBER · CHRONA</div><h1>${nav.find((n) => n[0] === adminTab)[1]}</h1></div><button class="btn btn-dark" data-quick>+ Novo</button></header>${adminContent()}</main></div><nav class="mobile-nav">${nav.map((n) => `<button class="${adminTab === n[0] ? "active" : ""}" data-tab="${n[0]}">${n[1]}</button>`).join("")}</nav></div>`;
 }
 function adminContent() {
   let revenue = db.cash
@@ -464,10 +472,12 @@ function reminder(c, msg) {
   return `<div class="list-card"><span><b>${c.name}</b><br><small class="muted">${c.phone}</small></span><a class="btn btn-outline" target="_blank" href="https://wa.me/55${c.phone}?text=${encodeURIComponent(msg)}">Enviar</a></div>`;
 }
 function render() {
-  app.innerHTML = location.hash === "#admin" ? adminPage() : publicPage();
+  app.innerHTML = location.hash === "#admin" ? (authSession ? adminPage() : loginPage()) : publicPage();
   bind();
 }
 function bind() {
+  document.querySelector("#login-form")?.addEventListener("submit",async(e)=>{e.preventDefault();const button=e.currentTarget.querySelector("button[type=submit]");button.disabled=true;try{const form=new FormData(e.currentTarget);await signIn(form.get("email"),form.get("password"));render();if(typeof loadRemoteAgenda==="function") await loadRemoteAgenda();toast("Acesso autorizado");}catch(error){toast(error.message);button.disabled=false;}});
+  document.querySelector("[data-logout]")?.addEventListener("click",()=>{authSession=null;sessionStorage.removeItem("chrona-session");render();});
   document.querySelectorAll("[data-book]").forEach(
     (b) =>
       (b.onclick = () => {
