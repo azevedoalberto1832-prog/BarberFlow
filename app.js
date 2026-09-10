@@ -1,6 +1,7 @@
 const SUPABASE_URL = "https://qcjjqdkjfvnbslbpnrgk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_27mV2bABNSGQYPkGEF-T4g_XBQtb2r7";
 const SHOP_SLUG = new URLSearchParams(location.search).get("tenant") || "palazzo";
+document.body.dataset.tenant = SHOP_SLUG;
 let authSession = JSON.parse(sessionStorage.getItem("chrona-session") || "null");
 async function rpc(name, body) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {

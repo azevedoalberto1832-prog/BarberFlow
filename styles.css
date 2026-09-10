@@ -586,6 +586,108 @@ th {
 .danger {
   color: var(--red);
 }
+
+/* Identidade Nayara: creme, malva e tipografia editorial inspirada na
+   delicadeza do template de referência, sem compartilhar a marca Aveline. */
+body[data-tenant="nayara-lash"] {
+  --ink: #3d3233;
+  --ink2: #9a6f78;
+  --paper: #fcf9f3;
+  --card: #ffffff;
+  --copper: #bea1a4;
+  --copper2: #9a6f78;
+  --muted: #786d6d;
+  --line: #eadfdd;
+  --green: #46735d;
+  --red: #ad5963;
+  --shadow: 0 20px 55px rgba(107, 74, 81, 0.12);
+  --r: 18px;
+  font-family: "Nunito Sans", sans-serif;
+  background: var(--paper);
+}
+body[data-tenant="nayara-lash"] h1,
+body[data-tenant="nayara-lash"] h2,
+body[data-tenant="nayara-lash"] h3 {
+  font-family: "Cormorant Garamond", serif;
+  font-weight: 500;
+}
+body[data-tenant="nayara-lash"] .topbar {
+  background: rgba(252, 249, 243, 0.94);
+}
+body[data-tenant="nayara-lash"] .hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 9% 30%, rgba(216, 143, 165, 0.13), transparent 22%),
+    radial-gradient(circle at 88% 70%, rgba(190, 161, 164, 0.18), transparent 24%),
+    linear-gradient(135deg, #fffdf8, #f8efeb);
+}
+body[data-tenant="nayara-lash"] .hero::before,
+body[data-tenant="nayara-lash"] .hero::after {
+  content: "❀";
+  position: absolute;
+  color: rgba(154, 111, 120, 0.18);
+  font-size: 84px;
+  line-height: 1;
+}
+body[data-tenant="nayara-lash"] .hero::before { left: 4%; top: 18%; transform: rotate(-18deg); }
+body[data-tenant="nayara-lash"] .hero::after { right: 5%; bottom: 12%; transform: rotate(18deg); }
+body[data-tenant="nayara-lash"] .hero h1 {
+  color: #8f6670;
+  letter-spacing: 0.01em;
+  line-height: 0.94;
+}
+body[data-tenant="nayara-lash"] .brand-logo,
+body[data-tenant="nayara-lash"] .hero-logo {
+  color: #fffaf7;
+  background:
+    radial-gradient(circle at 35% 28%, #d8bfc1, transparent 32%),
+    linear-gradient(145deg, #c7a7aa, #9a747b);
+  border-color: rgba(154, 111, 120, 0.22);
+}
+body[data-tenant="nayara-lash"] .hero-logo {
+  border-radius: 50% 50% 46% 54% / 48% 52% 48% 52%;
+  box-shadow: 0 28px 70px rgba(122, 83, 92, 0.2);
+}
+body[data-tenant="nayara-lash"] .btn-dark,
+body[data-tenant="nayara-lash"] .btn-copper,
+body[data-tenant="nayara-lash"] .slot-btn.active,
+body[data-tenant="nayara-lash"] .tabs button.active {
+  background: #d88fa5;
+  color: #fff;
+}
+body[data-tenant="nayara-lash"] .btn-dark:hover,
+body[data-tenant="nayara-lash"] .btn-copper:hover { background: #c87b93; }
+body[data-tenant="nayara-lash"] .service-card {
+  box-shadow: 0 8px 30px rgba(115, 82, 88, 0.06);
+}
+body[data-tenant="nayara-lash"] .service-card:hover { border-color: #d8b7bd; }
+body[data-tenant="nayara-lash"] .location,
+body[data-tenant="nayara-lash"] .summary,
+body[data-tenant="nayara-lash"] .field input,
+body[data-tenant="nayara-lash"] .field select,
+body[data-tenant="nayara-lash"] .field textarea,
+body[data-tenant="nayara-lash"] .toolbar input,
+body[data-tenant="nayara-lash"] .toolbar select,
+body[data-tenant="nayara-lash"] .tabs button {
+  background: #fff;
+  color: var(--ink);
+}
+body[data-tenant="nayara-lash"] .location {
+  background: linear-gradient(135deg, #f1e0df, #f8eeea);
+}
+body[data-tenant="nayara-lash"] .modal { background: rgba(83, 61, 66, 0.52); }
+body[data-tenant="nayara-lash"] .admin,
+body[data-tenant="nayara-lash"] .sidebar { background: #f8f1ed; }
+body[data-tenant="nayara-lash"] .nav button { color: #786d6d; }
+body[data-tenant="nayara-lash"] .nav button.active,
+body[data-tenant="nayara-lash"] .nav button:hover {
+  background: #ead9d8;
+  color: #895f69;
+}
+body[data-tenant="nayara-lash"] .badge { background: #f0e2e1; }
+body[data-tenant="nayara-lash"] .mobile-nav { background: #fffaf7; }
+body[data-tenant="nayara-lash"] .toast { background: #d88fa5; color: #fff; }
 @media (max-width: 900px) {
   .hero-grid,
   .split {
