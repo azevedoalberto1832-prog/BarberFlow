@@ -10,11 +10,14 @@ A **PALAZZO STUDIO BARBER** é o primeiro tenant real. Sua identidade permanece 
 - Agendamento autônomo em quatro passos, com soma de preço/duração e bloqueio de conflitos.
 - Área administrativa responsiva: dashboard, agenda, clientes, caixa, lembretes, serviços e configurações.
 - Lembretes de aniversário e retorno após 20 dias.
-- Persistência local (`localStorage`) para uso imediato como demonstração.
+- Persistência operacional no Supabase/PostgreSQL; o navegador não é a fonte da verdade.
+- Autenticação administrativa, isolamento multi-tenant por RLS e controle de assinatura.
+- Conclusão de atendimento com lançamento idempotente no caixa.
+- CRUD persistente de clientes, serviços, profissionais, movimentações e configurações.
 
 ## Arquitetura e evolução
 
-A demo não exige backend. Dados, regras de disponibilidade e renderização estão separados em funções, facilitando a migração para React e um repositório remoto. Próximas etapas sugeridas: autenticação por estabelecimento, Supabase/Postgres com RLS, notificações oficiais do WhatsApp, confirmação/cancelamento por link, múltiplas unidades, CRM e relatórios avançados.
+A aplicação usa um único banco multi-tenant no Supabase. Cada registro operacional pertence a um estabelecimento e as políticas RLS aplicam o isolamento no banco. A Palazzo é o primeiro tenant; o próximo marco é validar um tenant de Lash sem alterar o código da aplicação. CRM e automação oficial de WhatsApp entram somente depois dessa validação.
 
 ## Execução local
 

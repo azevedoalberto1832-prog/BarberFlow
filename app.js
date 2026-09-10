@@ -18,6 +18,13 @@ async function signIn(email,password) {
   if(!response.ok) throw new Error(data.error_description || data.msg || "E-mail ou senha inválidos");
   authSession=data; sessionStorage.setItem("chrona-session",JSON.stringify(data)); return data;
 }
+async function rest(path,{method="GET",body,prefer="return=representation"}={}) {
+  if(!authSession?.access_token) throw new Error("Sessão expirada. Entre novamente.");
+  const response=await fetch(`${SUPABASE_URL}/rest/v1/${path}`,{method,headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${authSession.access_token}`,"Content-Type":"application/json",Prefer:prefer},body:body===undefined?undefined:JSON.stringify(body)});
+  const data=response.status===204?null:await response.json().catch(()=>null);
+  if(!response.ok) throw new Error(data?.message || data?.hint || "Não foi possível salvar a alteração");
+  return data;
+}
 const SERVICES = [
   {
     id: "corte",
@@ -190,11 +197,12 @@ let booking = {
 let adminTab = "dashboard";
 let cashTab = "movimentos";
 let agendaDate = addDays(1);
+let currentProfile=null,currentShop=null,currentSubscription=null,adminLoaded=false;
 const save = () => {};
 let remoteSlots = [], slotProfessionals = {}, slotsLoaded = false;
 const money = (v) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const dateBR = (d) => new Date(d + "T12:00").toLocaleDateString("pt-BR");
+const dateBR = (d) => d ? new Date(d + "T12:00").toLocaleDateString("pt-BR") : "—";
 const service = (id) => db.services.find((s) => s.id === id);
 const total = () =>
   booking.serviceIds.reduce(
@@ -233,6 +241,10 @@ function openAdminForm(kind, id = "") {
     };
     title = id ? "Editar serviço" : "Novo serviço";
     fields = `<label class="field"><span>Nome *</span><input name="name" value="${item.name}" required></label><label class="field"><span>Preço *</span><input name="price" type="number" step="0.01" value="${item.price}" required></label><label class="field"><span>Duração (min) *</span><input name="duration" type="number" step="15" value="${item.duration}" required></label><label class="field full"><span>Descrição</span><textarea name="desc" rows="3">${item.desc || ""}</textarea></label>`;
+  } else if(kind === "professional") {
+    item=PEOPLE.find(x=>x.id===id)||{name:"",phone:"",active:true};
+    title=id?"Editar profissional":"Novo profissional";
+    fields=`<label class="field"><span>Nome *</span><input name="name" value="${item.name}" required></label><label class="field"><span>WhatsApp</span><input name="phone" value="${item.phone||""}"></label>`;
   } else {
     title = "Nova movimentação";
     fields = `<label class="field"><span>Descrição *</span><input name="desc" required></label><label class="field"><span>Tipo</span><select name="type"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></label><label class="field"><span>Valor *</span><input name="value" type="number" step="0.01" required></label><label class="field"><span>Categoria</span><select name="category">${db.categories.map((c) => `<option>${c}</option>`).join("")}</select></label><label class="field"><span>Método</span><select name="method"><option>Pix</option><option>Dinheiro</option><option>Cartão</option></select></label><label class="field"><span>Data</span><input name="date" type="date" value="${today()}"></label>`;
@@ -248,29 +260,28 @@ function openAdminForm(kind, id = "") {
         (x.onclick = () =>
           document.querySelector("#admin-form-modal")?.remove()),
     );
-  document.querySelector("#admin-form").onsubmit = (event) => {
+  document.querySelector("#admin-form").onsubmit = async (event) => {
     event.preventDefault();
+    const submit=event.currentTarget.querySelector("button[type=submit]"); submit.disabled=true;
     const form = new FormData(event.currentTarget);
     const value = Object.fromEntries(form.entries());
-    if (kind === "client") {
-      if (id) Object.assign(item, value);
-      else db.clients.unshift({ id: uid(), ...value });
-    }
-    if (kind === "service") {
-      const data = {
-        ...value,
-        price: Number(value.price),
-        duration: Number(value.duration),
-      };
-      if (id) Object.assign(item, data);
-      else db.services.push({ id: uid(), ...data, active: true });
-    }
-    if (kind === "cash")
-      db.cash.unshift({ id: uid(), ...value, value: Number(value.value) });
-    save();
-    document.querySelector("#admin-form-modal")?.remove();
-    render();
-    toast("Alteração salva");
+    try {
+      if (kind === "client") {
+        const phone=value.phone.replace(/\D/g,""); if(phone.length<10) throw new Error("Informe um WhatsApp válido");
+        const data={barbershop_id:currentProfile.barbershop_id,name:value.name.trim(),phone:value.phone,phone_normalized:phone,birth_date:value.birth||null,last_visit:value.lastVisit||null};
+        await rest(id?`clients?id=eq.${id}`:"clients",{method:id?"PATCH":"POST",body:data});
+      }
+      if (kind === "service") {
+        const data={barbershop_id:currentProfile.barbershop_id,name:value.name.trim(),description:value.desc||null,price:Number(value.price),duration_minutes:Number(value.duration),...(id?{}:{active:true})};
+        await rest(id?`services?id=eq.${id}`:"services",{method:id?"PATCH":"POST",body:data});
+      }
+      if(kind === "professional"){
+        const data={barbershop_id:currentProfile.barbershop_id,name:value.name.trim(),phone:value.phone||null,...(id?{}:{active:true})};
+        await rest(id?`professionals?id=eq.${id}`:"professionals",{method:id?"PATCH":"POST",body:data});
+      }
+      if (kind === "cash") await rest("cash_transactions",{method:"POST",body:{barbershop_id:currentProfile.barbershop_id,type:value.type==="entrada"?"income":"expense",description:value.desc.trim(),amount:Number(value.value),category:value.category,payment_method:value.method,transaction_date:value.date,created_by:currentProfile.id}});
+      await loadAdminData(); document.querySelector("#admin-form-modal")?.remove(); render(); toast("Alteração salva no sistema");
+    } catch(error){toast(error.message);submit.disabled=false;}
   };
 }
 function confirmAdmin(message, action) {
@@ -281,13 +292,17 @@ function confirmAdmin(message, action) {
   );
   document.querySelector("[data-confirm-no]").onclick = () =>
     document.querySelector("#admin-confirm").remove();
-  document.querySelector("[data-confirm-yes]").onclick = () => {
-    action();
-    document.querySelector("#admin-confirm").remove();
-    save();
-    render();
-    toast("Item excluído");
+  document.querySelector("[data-confirm-yes]").onclick = async () => {
+    const button=document.querySelector("[data-confirm-yes]"); button.disabled=true;
+    try{await action();await loadAdminData();document.querySelector("#admin-confirm").remove();render();toast("Alteração concluída");}
+    catch(error){toast(error.message);button.disabled=false;}
   };
+}
+function openPaymentForm(appointment){
+  document.querySelector("#payment-modal")?.remove();
+  document.body.insertAdjacentHTML("beforeend",`<div class="modal" id="payment-modal"><div class="modal-card" style="max-width:500px"><div class="modal-head"><div><div class="eyebrow">CONCLUIR ATENDIMENTO</div><h3 style="font-size:27px">${appointment.client}</h3></div><button class="btn btn-ghost" data-payment-close>✕</button></div><form id="payment-form" class="modal-body"><div class="form-grid"><label class="field"><span>Valor recebido</span><input name="amount" type="number" step="0.01" min="0.01" value="${appointment.total}" required></label><label class="field"><span>Forma de pagamento</span><select name="method"><option>Pix</option><option>Dinheiro</option><option>Débito</option><option>Crédito</option></select></label></div><div class="modal-actions"><button type="button" class="btn btn-outline" data-payment-close>Cancelar</button><button class="btn btn-dark" type="submit">Concluir e lançar no caixa</button></div></form></div></div>`);
+  document.querySelectorAll("[data-payment-close]").forEach(x=>x.onclick=()=>document.querySelector("#payment-modal")?.remove());
+  document.querySelector("#payment-form").onsubmit=async(e)=>{e.preventDefault();const button=e.currentTarget.querySelector("button[type=submit]");button.disabled=true;const form=new FormData(e.currentTarget);try{await rpc("complete_appointment",{target_appointment:appointment.id,paid_amount:Number(form.get("amount")),paid_method:form.get("method")});await loadAdminData();document.querySelector("#payment-modal")?.remove();render();toast("Atendimento concluído e lançado no caixa");}catch(error){toast(error.message);button.disabled=false;}};
 }
 async function loadPublicData() {
   try {
@@ -304,7 +319,7 @@ async function loadPublicData() {
 }
 async function loadAvailableSlots() {
   remoteSlots=[]; slotProfessionals={}; slotsLoaded=false;
-  const people = booking.professional === "any" ? PEOPLE : PEOPLE.filter((p)=>p.id===booking.professional);
+  const people = (booking.professional === "any" ? PEOPLE : PEOPLE.filter((p)=>p.id===booking.professional)).filter(p=>p.active!==false);
   const results = await Promise.all(people.map(async (p) => ({ p, slots: await rpc("get_available_slots", { shop_slug:SHOP_SLUG, professional:p.id, service_ids:booking.serviceIds, appt_date:booking.date }) })));
   results.forEach(({p,slots}) => (slots || []).forEach((row) => { const value=String(row.slot).slice(0,5); slotProfessionals[value] ||= p.id; }));
   remoteSlots=Object.keys(slotProfessionals).sort();
@@ -321,7 +336,34 @@ function publicPage() {
       "",
     )}</div></div></section><section class="section"><div class="container"><div class="location"><div><div class="eyebrow">Endereço</div><h2 style="font-size:38px;margin:8px 0">PALAZZO STUDIO BARBER</h2><p>${db.settings.address}</p></div><div><button class="btn btn-copper" data-book>Agendar horário</button> <a class="btn btn-outline" target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(db.settings.address)}">Abrir no mapa</a></div></div></div></section></main><footer class="footer"><div class="container"><span>© PALAZZO STUDIO BARBER</span><div><a class="btn btn-ghost" target="_blank" href="https://www.instagram.com/Palazzobarber_/">@Palazzobarber_</a><button class="btn btn-outline" data-admin>Área da barbearia</button></div></div></footer>`;
 }
+async function loadAdminData() {
+  if(!authSession) return;
+  const profiles=await rest("profiles?select=id,barbershop_id,name,role,active&auth_user_id=eq."+encodeURIComponent(authSession.user.id));
+  currentProfile=profiles?.[0];
+  if(!currentProfile?.active) throw new Error("Usuário sem acesso ativo.");
+  const shops=await rest(`barbershops?select=*&id=eq.${currentProfile.barbershop_id}`); currentShop=shops?.[0];
+  const [services,professionals,clients,appointments,cash,subscriptions,categories]=await Promise.all([
+    rest(`services?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
+    rest(`professionals?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
+    rest(`clients?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
+    rpc("get_public_agenda",{shop_slug:currentShop.slug,appt_date:null}),
+    rest(`cash_transactions?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=transaction_date.desc,created_at.desc`),
+    rest(`subscriptions?select=*&barbershop_id=eq.${currentProfile.barbershop_id}`),
+    rest(`cash_categories?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
+  ]);
+  currentSubscription=subscriptions?.[0];
+  db.services=(services||[]).map(s=>({id:s.id,name:s.name,desc:s.description,duration:s.duration_minutes,price:Number(s.price),active:s.active}));
+  PEOPLE=(professionals||[]).map(p=>({id:p.id,name:p.name,phone:p.phone,active:p.active}));
+  db.clients=(clients||[]).map(c=>({id:c.id,name:c.name,phone:c.phone,birth:c.birth_date||"",lastVisit:c.last_visit||"",notes:c.notes||"",optIn:c.whatsapp_opt_in}));
+  db.appointments=Array.isArray(appointments)?appointments:[];
+  db.cash=(cash||[]).map(x=>({id:x.id,appointmentId:x.appointment_id,type:x.type==="income"?"entrada":"saida",desc:x.description,value:Number(x.amount),category:x.category,date:x.transaction_date,method:x.payment_method||""}));
+  db.categories=(categories||[]).map(c=>c.name);
+  if(currentShop) db.settings={shop:currentShop.name,address:currentShop.address||"",phone:currentShop.phone||"",open:currentShop.opening_time?.slice(0,5)||"09:00",close:currentShop.closing_time?.slice(0,5)||"19:00",breakStart:currentShop.break_start?.slice(0,5)||"",breakEnd:currentShop.break_end?.slice(0,5)||"",greeting:currentShop.whatsapp_message||"",instagram:currentShop.instagram||"",logo:currentShop.logo_url||"palazzo-logo.jpg"};
+  adminLoaded=true;
+}
 function loginPage(){return `<main class="section"><div class="container"><section class="panel" style="max-width:460px;margin:7vh auto"><div class="eyebrow">CHRONA</div><h2>Acesso da empresa</h2><p class="muted">Entre com a conta vinculada ao seu estabelecimento.</p><form id="login-form"><label class="field"><span>E-mail</span><input name="email" type="email" autocomplete="username" required></label><label class="field"><span>Senha</span><input name="password" type="password" autocomplete="current-password" required></label><div class="modal-actions"><button type="button" class="btn btn-outline" data-public>Voltar</button><button class="btn btn-dark" type="submit">Entrar</button></div></form></section></div></main>`}
+function loadingPage(){return `<main class="section"><div class="container empty"><h2>Carregando painel…</h2><p>Sincronizando os dados da empresa.</p></div></main>`}
+function suspendedPage(){return `<main class="section"><div class="container"><section class="panel" style="max-width:620px;margin:8vh auto;text-align:center"><div class="eyebrow">CHRONA</div><h2>Assinatura suspensa</h2><p class="muted">A assinatura Chrona deste estabelecimento está suspensa. Os dados permanecem preservados. Entre em contato para regularização.</p><button class="btn btn-outline" data-logout>Sair</button></section></div></main>`}
 function availableSlots() {
   if (slotsLoaded) return remoteSlots;
   let dur = total().duration || 30,
@@ -371,7 +413,7 @@ function bookingModal() {
       )
       .join("")}</div>`;
   if (booking.step === 2)
-    body = `<div class="choice-grid"><button class="choice ${booking.professional === "any" ? "active" : ""}" data-prof="any"><b>Qualquer profissional</b><br><span class="muted">Primeiro horário disponível</span></button>${PEOPLE.map((p) => `<button class="choice ${booking.professional === p.id ? "active" : ""}" data-prof="${p.id}"><b>${p.name}</b><br><span class="muted">Barbeiro</span></button>`).join("")}</div>`;
+    body = `<div class="choice-grid"><button class="choice ${booking.professional === "any" ? "active" : ""}" data-prof="any"><b>Qualquer profissional</b><br><span class="muted">Primeiro horário disponível</span></button>${PEOPLE.filter(p=>p.active!==false).map((p) => `<button class="choice ${booking.professional === p.id ? "active" : ""}" data-prof="${p.id}"><b>${p.name}</b><br><span class="muted">Profissional</span></button>`).join("")}</div>`;
   if (booking.step === 3)
     body = `<div class="field" style="margin-bottom:20px"><label>Data</label><input id="book-date" type="date" min="${today()}" value="${booking.date}"></div><div class="slots">${
       availableSlots()
@@ -394,6 +436,7 @@ const nav = [
   ["caixa", "Caixa"],
   ["lembretes", "Lembretes"],
   ["servicos", "Serviços"],
+  ["profissionais", "Profissionais"],
   ["config", "Configurações"],
 ];
 function adminPage() {
@@ -446,7 +489,7 @@ function adminContent() {
         .filter((a) => a.date === agendaDate)
         .map(
           (a) =>
-            `<tr><td>${dateBR(a.date)} · ${a.time}</td><td>${a.client}</td><td>${a.serviceIds.map((x) => service(x)?.name).join(", ")}</td><td>${PEOPLE.find((p) => p.id === a.professional)?.name}</td><td><button class="badge ${a.status === "Concluído" ? "green" : ""}" data-status="${a.id}">${a.status}</button></td><td><button class="btn btn-ghost" data-delete-appt="${a.id}">Excluir</button></td></tr>`,
+            `<tr><td>${dateBR(a.date)} · ${a.time}</td><td>${a.client}</td><td>${a.serviceIds.map((x) => service(x)?.name).filter(Boolean).join(", ")}</td><td>${PEOPLE.find((p) => p.id === a.professional)?.name||"—"}</td><td><span class="badge ${a.status === "Concluído" ? "green" : ""}">${a.status}</span></td><td>${a.status==="Agendado"?`<button class="btn btn-ghost" data-confirm-appt="${a.id}">Confirmar</button>`:""}${["Agendado","Confirmado"].includes(a.status)?`<button class="btn btn-dark" data-complete-appt="${a.id}">Concluir</button><button class="btn btn-ghost" data-noshow-appt="${a.id}">Falta</button><button class="btn btn-ghost danger" data-delete-appt="${a.id}">Cancelar</button>`:""}</td></tr>`,
         )
         .join("") ||
       '<tr><td colspan="6" class="empty">Nenhum atendimento nesta data.</td></tr>'
@@ -466,18 +509,19 @@ function adminContent() {
   }
   if (adminTab === "servicos")
     return `<section class="panel"><div class="toolbar"><span class="muted">Nome, preço, duração e disponibilidade</span><button class="btn btn-dark" data-add-service>+ Serviço</button></div><div class="list-cards">${db.services.map((s) => `<div class="list-card"><span><b>${s.name}</b><br><small class="muted">${s.duration} min · ${money(s.price)}</small></span><span><button class="btn btn-ghost" data-edit-service="${s.id}">Editar</button><button class="badge ${s.active ? "green" : "red"}" data-toggle-service="${s.id}">${s.active ? "Ativo" : "Inativo"}</button><button class="btn btn-ghost danger" data-delete-service="${s.id}">Excluir</button></span></div>`).join("")}</div></section>`;
-  return `<section class="panel"><div class="form-grid"><label class="field"><span>Nome da barbearia</span><input id="set-shop" value="${db.settings.shop}"></label><label class="field"><span>WhatsApp</span><input id="set-phone" value="${db.settings.phone}"></label><label class="field full"><span>Endereço</span><input id="set-address" value="${db.settings.address}"></label><label class="field"><span>Abertura</span><input id="set-open" type="time" value="${db.settings.open}"></label><label class="field"><span>Fechamento</span><input id="set-close" type="time" value="${db.settings.close}"></label><label class="field"><span>Início do intervalo</span><input id="set-break-start" type="time" value="${db.settings.breakStart}"></label><label class="field"><span>Fim do intervalo</span><input id="set-break-end" type="time" value="${db.settings.breakEnd}"></label><label class="field full"><span>Saudação do WhatsApp</span><textarea id="set-greeting" rows="4">${db.settings.greeting}</textarea></label></div><div class="modal-actions"><button class="btn btn-outline danger" data-reset>Restaurar demo</button><button class="btn btn-dark" data-save-settings>Salvar configurações</button></div></section>`;
+  if(adminTab === "profissionais") return `<section class="panel"><div class="toolbar"><span class="muted">Equipe e disponibilidade para agendamentos</span><button class="btn btn-dark" data-add-professional>+ Profissional</button></div><div class="list-cards">${PEOPLE.map(p=>`<div class="list-card"><span><b>${p.name}</b><br><small class="muted">${p.phone||"Sem telefone"}</small></span><span><button class="btn btn-ghost" data-edit-professional="${p.id}">Editar</button><button class="badge ${p.active?"green":"red"}" data-toggle-professional="${p.id}">${p.active?"Ativo":"Inativo"}</button></span></div>`).join("")||'<div class="empty">Nenhum profissional cadastrado.</div>'}</div></section>`;
+  return `<section class="panel"><div class="form-grid"><label class="field"><span>Nome da empresa</span><input id="set-shop" value="${db.settings.shop}"></label><label class="field"><span>WhatsApp</span><input id="set-phone" value="${db.settings.phone}"></label><label class="field full"><span>Endereço</span><input id="set-address" value="${db.settings.address}"></label><label class="field"><span>Abertura</span><input id="set-open" type="time" value="${db.settings.open}"></label><label class="field"><span>Fechamento</span><input id="set-close" type="time" value="${db.settings.close}"></label><label class="field"><span>Início do intervalo</span><input id="set-break-start" type="time" value="${db.settings.breakStart}"></label><label class="field"><span>Fim do intervalo</span><input id="set-break-end" type="time" value="${db.settings.breakEnd}"></label><label class="field full"><span>Saudação do WhatsApp</span><textarea id="set-greeting" rows="4">${db.settings.greeting}</textarea></label></div><div class="modal-actions"><button class="btn btn-dark" data-save-settings>Salvar configurações</button></div></section>`;
 }
 function reminder(c, msg) {
   return `<div class="list-card"><span><b>${c.name}</b><br><small class="muted">${c.phone}</small></span><a class="btn btn-outline" target="_blank" href="https://wa.me/55${c.phone}?text=${encodeURIComponent(msg)}">Enviar</a></div>`;
 }
 function render() {
-  app.innerHTML = location.hash === "#admin" ? (authSession ? adminPage() : loginPage()) : publicPage();
+  app.innerHTML = location.hash === "#admin" ? (!authSession ? loginPage() : !adminLoaded ? loadingPage() : currentSubscription?.status==="suspended" ? suspendedPage() : adminPage()) : publicPage();
   bind();
 }
 function bind() {
-  document.querySelector("#login-form")?.addEventListener("submit",async(e)=>{e.preventDefault();const button=e.currentTarget.querySelector("button[type=submit]");button.disabled=true;try{const form=new FormData(e.currentTarget);await signIn(form.get("email"),form.get("password"));render();if(typeof loadRemoteAgenda==="function") await loadRemoteAgenda();toast("Acesso autorizado");}catch(error){toast(error.message);button.disabled=false;}});
-  document.querySelector("[data-logout]")?.addEventListener("click",()=>{authSession=null;sessionStorage.removeItem("chrona-session");render();});
+  document.querySelector("#login-form")?.addEventListener("submit",async(e)=>{e.preventDefault();const button=e.currentTarget.querySelector("button[type=submit]");button.disabled=true;try{const form=new FormData(e.currentTarget);await signIn(form.get("email"),form.get("password"));await loadAdminData();render();toast("Acesso autorizado");}catch(error){toast(error.message);button.disabled=false;}});
+  document.querySelector("[data-logout]")?.addEventListener("click",()=>{authSession=null;adminLoaded=false;currentProfile=currentShop=currentSubscription=null;sessionStorage.removeItem("chrona-session");render();});
   document.querySelectorAll("[data-book]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -513,20 +557,9 @@ function bind() {
         render();
       }),
   );
-  document.querySelectorAll("[data-status]").forEach(
-    (x) =>
-      (x.onclick = () => {
-        let a = db.appointments.find((a) => a.id === x.dataset.status);
-        a.status =
-          a.status === "Agendado"
-            ? "Concluído"
-            : a.status === "Concluído"
-              ? "Cancelado"
-              : "Agendado";
-        save();
-        render();
-      }),
-  );
+  document.querySelectorAll("[data-confirm-appt]").forEach(x=>x.onclick=async()=>{try{await rest(`appointments?id=eq.${x.dataset.confirmAppt}`,{method:"PATCH",body:{status:"confirmed",updated_at:new Date().toISOString()}});await loadAdminData();render();toast("Agendamento confirmado");}catch(error){toast(error.message);}});
+  document.querySelectorAll("[data-complete-appt]").forEach(x=>x.onclick=()=>openPaymentForm(db.appointments.find(a=>a.id===x.dataset.completeAppt)));
+  document.querySelectorAll("[data-noshow-appt]").forEach(x=>x.onclick=()=>confirmAdmin("O agendamento será marcado como falta e o horário será encerrado.",()=>rest(`appointments?id=eq.${x.dataset.noshowAppt}`,{method:"PATCH",body:{status:"no_show",updated_at:new Date().toISOString()}})));
   document.querySelector("#agenda-date")?.addEventListener("change", (e) => {
     agendaDate = e.target.value;
     render();
@@ -550,17 +583,7 @@ function bind() {
     document.body.insertAdjacentHTML("beforeend", bookingModal());
     bindBooking();
   });
-  document.querySelectorAll("[data-delete-appt]").forEach((x) =>
-    x.addEventListener("click", () => {
-      if (confirm("Excluir este agendamento?")) {
-        db.appointments = db.appointments.filter(
-          (a) => a.id !== x.dataset.deleteAppt,
-        );
-        save();
-        render();
-      }
-    }),
-  );
+  document.querySelectorAll("[data-delete-appt]").forEach(x=>x.addEventListener("click",()=>confirmAdmin("O horário será liberado e o agendamento ficará como cancelado.",()=>rest(`appointments?id=eq.${x.dataset.deleteAppt}`,{method:"PATCH",body:{status:"cancelled",updated_at:new Date().toISOString()}}))));
   document
     .querySelectorAll("[data-whatsapp]")
     .forEach(
@@ -570,11 +593,9 @@ function bind() {
     );
   document.querySelectorAll("[data-toggle-service]").forEach(
     (x) =>
-      (x.onclick = () => {
+      (x.onclick = async () => {
         let s = service(x.dataset.toggleService);
-        s.active = !s.active;
-        save();
-        render();
+        try{await rest(`services?id=eq.${s.id}`,{method:"PATCH",body:{active:!s.active,updated_at:new Date().toISOString()}});await loadAdminData();render();toast("Serviço atualizado");}catch(error){toast(error.message);}
       }),
   );
   document.querySelectorAll("[data-cash-tab]").forEach((x) =>
@@ -596,9 +617,7 @@ function bind() {
   );
   document.querySelectorAll("[data-delete-client]").forEach((x) =>
     x.addEventListener("click", () => {
-      confirmAdmin("O cadastro será removido da lista de clientes.", () => {
-        db.clients = db.clients.filter((c) => c.id !== x.dataset.deleteClient);
-      });
+      confirmAdmin("O cadastro será removido somente se não possuir histórico de atendimentos.", () => rest(`clients?id=eq.${x.dataset.deleteClient}`,{method:"DELETE"}));
     }),
   );
   document
@@ -611,65 +630,42 @@ function bind() {
   );
   document.querySelectorAll("[data-delete-service]").forEach((x) =>
     x.addEventListener("click", () => {
-      confirmAdmin("O serviço deixará de aparecer no catálogo.", () => {
-        db.services = db.services.filter(
-          (s) => s.id !== x.dataset.deleteService,
-        );
-      });
+      confirmAdmin("O serviço será desativado e deixará de aparecer no catálogo.", () => rest(`services?id=eq.${x.dataset.deleteService}`,{method:"PATCH",body:{active:false,updated_at:new Date().toISOString()}}));
     }),
   );
+  document.querySelector("[data-add-professional]")?.addEventListener("click",()=>openAdminForm("professional"));
+  document.querySelectorAll("[data-edit-professional]").forEach(x=>x.addEventListener("click",()=>openAdminForm("professional",x.dataset.editProfessional)));
+  document.querySelectorAll("[data-toggle-professional]").forEach(x=>x.addEventListener("click",async()=>{const p=PEOPLE.find(p=>p.id===x.dataset.toggleProfessional);try{await rest(`professionals?id=eq.${p.id}`,{method:"PATCH",body:{active:!p.active}});await loadAdminData();render();toast("Profissional atualizado");}catch(error){toast(error.message);}}));
   document.querySelectorAll("[data-delete-cash]").forEach((x) =>
     x.addEventListener("click", () => {
       confirmAdmin(
         "A movimentação será removida e o saldo recalculado.",
-        () => {
-          db.cash = db.cash.filter((m) => m.id !== x.dataset.deleteCash);
-        },
+        () => rest(`cash_transactions?id=eq.${x.dataset.deleteCash}&appointment_id=is.null`,{method:"DELETE"}),
       );
     }),
   );
   document
     .querySelector("[data-add-category]")
-    ?.addEventListener("click", () => {
+    ?.addEventListener("click", async () => {
       const name = prompt("Nome da nova categoria:");
       if (name && !db.categories.includes(name)) {
-        db.categories.push(name);
-        save();
-        render();
+        try{await rest("cash_categories",{method:"POST",body:{barbershop_id:currentProfile.barbershop_id,name:name.trim()}});await loadAdminData();render();toast("Categoria salva");}catch(error){toast(error.message);}
       }
     });
   document.querySelectorAll("[data-delete-category]").forEach((x) =>
-    x.addEventListener("click", () => {
+    x.addEventListener("click", async () => {
       if (db.cash.some((m) => m.category === x.dataset.deleteCategory))
         return toast("Categoria em uso; altere as movimentações primeiro");
-      db.categories = db.categories.filter(
-        (c) => c !== x.dataset.deleteCategory,
-      );
-      save();
-      render();
+      try{await rest(`cash_categories?barbershop_id=eq.${currentProfile.barbershop_id}&name=eq.${encodeURIComponent(x.dataset.deleteCategory)}`,{method:"DELETE"});await loadAdminData();render();toast("Categoria removida");}catch(error){toast(error.message);}
     }),
   );
   document
     .querySelector("[data-save-settings]")
-    ?.addEventListener("click", () => {
-      db.settings.shop = document.querySelector("#set-shop").value;
-      db.settings.phone = document.querySelector("#set-phone").value;
-      db.settings.address = document.querySelector("#set-address").value;
-      db.settings.open = document.querySelector("#set-open").value;
-      db.settings.close = document.querySelector("#set-close").value;
-      db.settings.breakStart = document.querySelector("#set-break-start").value;
-      db.settings.breakEnd = document.querySelector("#set-break-end").value;
-      db.settings.greeting = document.querySelector("#set-greeting").value;
-      save();
-      toast("Configurações salvas");
+    ?.addEventListener("click", async () => {
+      const button=document.querySelector("[data-save-settings]");button.disabled=true;
+      const data={name:document.querySelector("#set-shop").value.trim(),phone:document.querySelector("#set-phone").value.replace(/\D/g,""),address:document.querySelector("#set-address").value.trim(),opening_time:document.querySelector("#set-open").value,closing_time:document.querySelector("#set-close").value,break_start:document.querySelector("#set-break-start").value||null,break_end:document.querySelector("#set-break-end").value||null,whatsapp_message:document.querySelector("#set-greeting").value.trim(),updated_at:new Date().toISOString()};
+      try{await rest(`barbershops?id=eq.${currentShop.id}`,{method:"PATCH",body:data});const hours=Array.from({length:7},(_,weekday)=>({barbershop_id:currentShop.id,weekday,is_open:weekday>0,opening_time:weekday>0?data.opening_time:null,closing_time:weekday>0?data.closing_time:null,break_start:weekday>0?data.break_start:null,break_end:weekday>0?data.break_end:null}));await rest("business_hours?on_conflict=barbershop_id,weekday",{method:"POST",body:hours,prefer:"resolution=merge-duplicates,return=minimal"});await loadAdminData();render();toast("Configurações salvas no sistema");}catch(error){toast(error.message);button.disabled=false;}
     });
-  document.querySelector("[data-reset]")?.addEventListener("click", () => {
-    if (confirm("Restaurar todos os dados da demo?")) {
-      db = structuredClone(seed);
-      save();
-      render();
-    }
-  });
   document.querySelector("#search")?.addEventListener("input", (e) => {
     document
       .querySelectorAll("#client-list .list-card")
@@ -688,6 +684,7 @@ function bind() {
       clientes: "[data-add-client]",
       caixa: "[data-add-cash]",
       servicos: "[data-add-service]",
+      profissionais: "[data-add-professional]",
     };
     if (targets[adminTab]) document.querySelector(targets[adminTab])?.click();
     else if (adminTab === "dashboard") {
@@ -799,6 +796,7 @@ function bindBooking() {
       const prof = booking.professional === "any" ? slotProfessionals[booking.time] : booking.professional;
       try {
         await rpc("create_public_appointment", { shop_slug:SHOP_SLUG, client_name:booking.name, client_phone:booking.phone, client_birth:booking.birth || null, opt_in:booking.optIn, professional:prof, service_ids:booking.serviceIds, appt_date:booking.date, appt_start:booking.time, appt_notes:booking.notes || null });
+        if(booking.adminMode) await loadAdminData();
       } catch (error) {
         await loadAvailableSlots().catch(() => {});
         refreshModal();
@@ -815,4 +813,4 @@ function refreshModal() {
 }
 window.addEventListener("hashchange", render);
 app.innerHTML = `<main class="section"><div class="container empty"><h2>Carregando agenda…</h2><p>Buscando serviços e horários disponíveis.</p></div></main>`;
-loadPublicData();
+loadPublicData().then(async()=>{if(authSession&&location.hash==="#admin"){try{await loadAdminData();render();}catch(error){authSession=null;sessionStorage.removeItem("chrona-session");render();toast(error.message);}}});

@@ -1,10 +1,7 @@
 async function loadRemoteAgenda() {
   try {
-    const appointments = await rpc("get_public_agenda", {
-      shop_slug: SHOP_SLUG,
-      appt_date: null,
-    });
-    db.appointments = Array.isArray(appointments) ? appointments : [];
+    if (!authSession) return;
+    await loadAdminData();
     if (location.hash === "#admin") render();
   } catch (error) {
     console.error("Falha ao carregar agenda do Supabase", error);
