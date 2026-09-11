@@ -192,7 +192,7 @@ const seed = {
       "Olá! Bem-vindo à PALAZZO STUDIO BARBER. Agende seu horário pelo nosso sistema oficial.",
   },
 };
-let db = structuredClone({ ...seed, services: [], people: [], clients: [], appointments: [], cash: [] });
+let db = structuredClone({ ...seed, services: [], people: [], clients: [], appointments: [], cash: [], reminders: [] });
 db.settings.shop = "PALAZZO STUDIO BARBER";
 db.settings.phone = "5565992788465";
 db.settings.greeting =
@@ -259,10 +259,11 @@ function openAdminForm(kind, id = "") {
       name: "",
       price: 50,
       duration: 30,
+      returnDays: 20,
       desc: "",
     };
     title = id ? "Editar serviço" : "Novo serviço";
-    fields = `<label class="field"><span>Nome *</span><input name="name" value="${item.name}" required></label><label class="field"><span>Preço *</span><input name="price" type="number" step="0.01" value="${item.price}" required></label><label class="field"><span>Duração (min) *</span><input name="duration" type="number" step="15" value="${item.duration}" required></label><label class="field full"><span>Descrição</span><textarea name="desc" rows="3">${item.desc || ""}</textarea></label>`;
+    fields = `<label class="field"><span>Nome *</span><input name="name" value="${item.name}" required></label><label class="field"><span>Preço *</span><input name="price" type="number" step="0.01" value="${item.price}" required></label><label class="field"><span>Duração (min) *</span><input name="duration" type="number" step="15" value="${item.duration}" required></label><label class="field"><span>Retorno recomendado (dias)</span><input name="returnDays" type="number" min="1" max="365" value="${item.returnDays??""}" placeholder="Sem lembrete"></label><label class="field full"><span>Descrição</span><textarea name="desc" rows="3">${item.desc || ""}</textarea><small class="muted">Deixe o retorno vazio para não criar lembrete após este serviço.</small></label>`;
   } else if(kind === "professional") {
     item=PEOPLE.find(x=>x.id===id)||{name:"",phone:"",active:true};
     title=id?"Editar profissional":"Novo profissional";
@@ -294,7 +295,7 @@ function openAdminForm(kind, id = "") {
         await rest(id?`clients?id=eq.${id}`:"clients",{method:id?"PATCH":"POST",body:data});
       }
       if (kind === "service") {
-        const data={barbershop_id:currentProfile.barbershop_id,name:value.name.trim(),description:value.desc||null,price:Number(value.price),duration_minutes:Number(value.duration),...(id?{}:{active:true})};
+        const data={barbershop_id:currentProfile.barbershop_id,name:value.name.trim(),description:value.desc||null,price:Number(value.price),duration_minutes:Number(value.duration),return_interval_days:value.returnDays===""?null:Number(value.returnDays),...(id?{}:{active:true})};
         await rest(id?`services?id=eq.${id}`:"services",{method:id?"PATCH":"POST",body:data});
       }
       if(kind === "professional"){
@@ -384,7 +385,7 @@ async function loadPublicData() {
     const payload = await rpc("get_public_shop", { shop_slug: SHOP_SLUG });
     if (!payload?.shop) throw new Error("Barbearia indisponível");
     const shop = payload.shop;
-    db.services = (payload.services || []).map((s) => ({ id:s.id, name:s.name, desc:s.description, duration:s.duration_minutes, price:Number(s.price), active:s.active }));
+    db.services = (payload.services || []).map((s) => ({ id:s.id, name:s.name, desc:s.description, duration:s.duration_minutes, price:Number(s.price), returnDays:s.return_interval_days, active:s.active }));
     PEOPLE = (payload.professionals || []).map((p) => ({ id:p.id, name:p.name }));
     db.settings = { shop:shop.name, address:shop.address || "Endereço a confirmar", phone:shop.phone || "", open:shop.opening_time?.slice(0,5) || "09:00", close:shop.closing_time?.slice(0,5) || "19:00", breakStart:shop.break_start?.slice(0,5) || "", breakEnd:shop.break_end?.slice(0,5) || "", greeting:shop.whatsapp_message || "Olá! Agende seu horário pela Chrona.", instagram:shop.instagram || "", logo:shop.logo_url || "" };
     document.title = `${shop.name} | Agendamento`;
@@ -435,7 +436,7 @@ async function loadAdminData() {
     adminLoaded=true; return;
   }
   const shops=await rest(`barbershops?select=*&id=eq.${currentProfile.barbershop_id}`); currentShop=shops?.[0];
-  const [services,professionals,clients,appointments,cash,subscriptions,categories,pipelines,stages,opportunities]=await Promise.all([
+  const [services,professionals,clients,appointments,cash,subscriptions,categories,pipelines,stages,opportunities,reminders]=await Promise.all([
     rest(`services?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
     rest(`professionals?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
     rest(`clients?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
@@ -446,14 +447,16 @@ async function loadAdminData() {
     rest(`crm_pipelines?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=created_at`),
     rest(`crm_stages?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=position`),
     rest(`crm_opportunities?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=updated_at.desc`),
+    rest(`reminders?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=scheduled_for`),
   ]);
   currentSubscription=subscriptions?.[0];
-  db.services=(services||[]).map(s=>({id:s.id,name:s.name,desc:s.description,duration:s.duration_minutes,price:Number(s.price),active:s.active}));
+  db.services=(services||[]).map(s=>({id:s.id,name:s.name,desc:s.description,duration:s.duration_minutes,price:Number(s.price),returnDays:s.return_interval_days,active:s.active}));
   PEOPLE=(professionals||[]).map(p=>({id:p.id,name:p.name,phone:p.phone,active:p.active}));
   db.clients=(clients||[]).map(c=>({id:c.id,name:c.name,phone:c.phone,birth:c.birth_date||"",lastVisit:c.last_visit||"",notes:c.notes||"",optIn:c.whatsapp_opt_in}));
   db.appointments=Array.isArray(appointments)?appointments:[];
   db.cash=(cash||[]).map(x=>({id:x.id,appointmentId:x.appointment_id,type:x.type==="income"?"entrada":"saida",desc:x.description,value:Number(x.amount),category:x.category,date:x.transaction_date,method:x.payment_method||""}));
   db.categories=(categories||[]).map(c=>c.name);
+  db.reminders=reminders||[];
   crmPipelines=pipelines||[];
   crmStages=stages||[];
   crmOpportunities=(opportunities||[]).map((opportunity)=>({...opportunity,value:opportunity.value===null?null:Number(opportunity.value)}));
@@ -634,23 +637,29 @@ function adminContent() {
   if (adminTab === "caixa")
     return `<div class="metrics"><div class="metric"><small>Entradas</small><b>${money(revenue)}</b></div><div class="metric"><small>Saídas</small><b class="danger">${money(expense)}</b></div><div class="metric"><small>Saldo</small><b>${money(revenue - expense)}</b></div><div class="metric"><small>Movimentos</small><b>${db.cash.length}</b></div></div><section class="panel"><div class="tabs"><button class="${cashTab === "movimentos" ? "active" : ""}" data-cash-tab="movimentos">Movimentações</button><button class="${cashTab === "categorias" ? "active" : ""}" data-cash-tab="categorias">Categorias editáveis</button></div>${cashTab === "movimentos" ? `<div class="toolbar"><span class="muted">Entradas e saídas organizadas</span><button class="btn btn-dark" data-add-cash>+ Movimentação</button></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Método</th><th>Valor</th><th></th></tr></thead><tbody>${db.cash.map((x) => `<tr><td>${dateBR(x.date)}</td><td>${x.desc}</td><td>${x.category}</td><td>${x.method}</td><td class="${x.type === "saida" ? "danger" : ""}">${x.type === "saida" ? "-" : "+"} ${money(x.value)}</td><td><button class="btn btn-ghost danger" data-delete-cash="${x.id}">Excluir</button></td></tr>`).join("")}</tbody></table></div>` : `<div class="toolbar"><span class="muted">Categorias usadas nas movimentações</span><button class="btn btn-dark" data-add-category>+ Categoria</button></div><div class="list-cards">${db.categories.map((c) => `<div class="list-card"><b>${c}</b><button class="btn btn-ghost danger" data-delete-category="${c}">Excluir</button></div>`).join("")}</div>`}</section>`;
   if (adminTab === "lembretes") {
-    let stale = db.clients.filter(
-        (c) => (Date.now() - new Date(c.lastVisit)) / 864e5 >= 20,
-      ),
-      birth = db.clients.filter(
+    const birth = db.clients.filter(
         (c) => c.birth.slice(5, 7) === today().slice(5, 7),
-      );
-    return `<div class="split"><section class="panel"><h3>🎂 Aniversariantes do mês</h3>${birth.map((c) => reminder(c, `Parabéns pelo seu aniversário! A ${db.settings.shop} deseja um dia incrível.`)).join("") || '<div class="empty">Nenhum aniversariante.</div>'}</section><section class="panel"><h3>✨ Retorno há 20+ dias</h3>${stale.map((c) => reminder(c, `Olá, ${c.name}! Já está na hora do seu próximo atendimento. Que tal agendar um horário?`)).join("")}</section></div>`;
+      ), returns=db.reminders.filter((item)=>item.type==="return"&&item.status==="pending"),
+      due=returns.filter((item)=>item.scheduled_for<=today()),
+      upcoming=returns.filter((item)=>item.scheduled_for>today());
+    const returnCard=(item)=>{
+      const client=db.clients.find((candidate)=>candidate.id===item.client_id);
+      return client?reminder(client,`Olá, ${client.name}! Chegou o momento recomendado para o seu próximo atendimento. Que tal agendar um horário?`,`Retorno previsto: ${dateBR(item.scheduled_for)}`,item.scheduled_for<=today()?"danger":""):"";
+    };
+    return `<div class="metrics"><div class="metric"><small>Retornos vencidos</small><b class="${due.length?"danger":""}">${due.length}</b></div><div class="metric"><small>Próximos retornos</small><b>${upcoming.length}</b></div><div class="metric"><small>Aniversariantes</small><b>${birth.length}</b></div><div class="metric"><small>Com consentimento</small><b>${db.clients.filter((client)=>client.optIn).length}</b></div></div><div class="split"><section class="panel"><h3>🎂 Aniversariantes do mês</h3>${birth.map((c) => reminder(c, `Parabéns pelo seu aniversário! A ${db.settings.shop} deseja um dia incrível.`)).join("") || '<div class="empty">Nenhum aniversariante.</div>'}</section><section class="panel"><h3>✨ Retornos por serviço</h3><div class="eyebrow" style="margin-bottom:10px">PRONTOS PARA CONTATO</div>${due.map(returnCard).join("")||'<div class="empty">Nenhum retorno vencido.</div>'}<div class="eyebrow" style="margin:24px 0 10px">PROGRAMADOS</div>${upcoming.map(returnCard).join("")||'<div class="empty">Nenhum retorno futuro.</div>'}</section></div>`;
   }
   if (adminTab === "servicos")
-    return `<section class="panel"><div class="toolbar"><span class="muted">Nome, preço, duração e disponibilidade</span><button class="btn btn-dark" data-add-service>+ Serviço</button></div><div class="list-cards">${db.services.map((s) => `<div class="list-card"><span><b>${s.name}</b><br><small class="muted">${s.duration} min · ${money(s.price)}</small></span><span><button class="btn btn-ghost" data-edit-service="${s.id}">Editar</button><button class="badge ${s.active ? "green" : "red"}" data-toggle-service="${s.id}">${s.active ? "Ativo" : "Inativo"}</button><button class="btn btn-ghost danger" data-delete-service="${s.id}">Excluir</button></span></div>`).join("")}</div></section>`;
+    return `<section class="panel"><div class="toolbar"><span class="muted">Nome, preço, duração e ciclo de retorno</span><button class="btn btn-dark" data-add-service>+ Serviço</button></div><div class="list-cards">${db.services.map((s) => `<div class="list-card"><span><b>${s.name}</b><br><small class="muted">${s.duration} min · ${money(s.price)} · ${s.returnDays?`retorno em ${s.returnDays} dias`:"sem lembrete de retorno"}</small></span><span><button class="btn btn-ghost" data-edit-service="${s.id}">Editar</button><button class="badge ${s.active ? "green" : "red"}" data-toggle-service="${s.id}">${s.active ? "Ativo" : "Inativo"}</button><button class="btn btn-ghost danger" data-delete-service="${s.id}">Excluir</button></span></div>`).join("")}</div></section>`;
   if(adminTab === "crm") return crmContent();
   if(adminTab === "automacoes") return `<section class="panel"><div class="toolbar"><div><h3 style="margin:0">Central de automações</h3><small class="muted">Regras prontas para n8n e WhatsApp Business Platform.</small></div><span class="badge ${currentSubscription?.plan==="pro"?"green":""}">${currentSubscription?.plan==="pro"?"Plano Pro":"Recurso Pro"}</span></div><div class="list-cards"><div class="list-card"><span><b>Retorno de cliente</b><br><small class="muted">Acionada quando o período sem atendimento for atingido.</small></span><span class="badge">Desativada</span></div><div class="list-card"><span><b>Aniversário</b><br><small class="muted">Mensagem personalizada respeitando o consentimento.</small></span><span class="badge">Desativada</span></div><div class="list-card"><span><b>Lembrete de agendamento</b><br><small class="muted">Confirmação programada antes do horário marcado.</small></span><span class="badge">Próxima etapa</span></div></div><div class="empty">Nenhuma mensagem será enviada até uma conexão oficial do WhatsApp ser configurada.</div></section>`;
   if(adminTab === "profissionais") return `<section class="panel"><div class="toolbar"><span class="muted">Equipe e disponibilidade para agendamentos</span><button class="btn btn-dark" data-add-professional>+ Profissional</button></div><div class="list-cards">${PEOPLE.map(p=>`<div class="list-card"><span><b>${p.name}</b><br><small class="muted">${p.phone||"Sem telefone"}</small></span><span><button class="btn btn-ghost" data-edit-professional="${p.id}">Editar</button><button class="badge ${p.active?"green":"red"}" data-toggle-professional="${p.id}">${p.active?"Ativo":"Inativo"}</button></span></div>`).join("")||'<div class="empty">Nenhum profissional cadastrado.</div>'}</div></section>`;
   return `<section class="panel"><div class="form-grid"><label class="field"><span>Nome da empresa</span><input id="set-shop" value="${db.settings.shop}"></label><label class="field"><span>WhatsApp</span><input id="set-phone" value="${db.settings.phone}"></label><label class="field full"><span>Endereço</span><input id="set-address" value="${db.settings.address}"></label><label class="field"><span>Abertura</span><input id="set-open" type="time" value="${db.settings.open}"></label><label class="field"><span>Fechamento</span><input id="set-close" type="time" value="${db.settings.close}"></label><label class="field"><span>Início do intervalo</span><input id="set-break-start" type="time" value="${db.settings.breakStart}"></label><label class="field"><span>Fim do intervalo</span><input id="set-break-end" type="time" value="${db.settings.breakEnd}"></label><label class="field full"><span>Saudação do WhatsApp</span><textarea id="set-greeting" rows="4">${db.settings.greeting}</textarea></label></div><div class="modal-actions"><button class="btn btn-dark" data-save-settings>Salvar configurações</button></div></section>`;
 }
-function reminder(c, msg) {
-  return `<div class="list-card"><span><b>${c.name}</b><br><small class="muted">${c.phone}</small></span><a class="btn btn-outline" target="_blank" href="https://wa.me/55${c.phone}?text=${encodeURIComponent(msg)}">Enviar</a></div>`;
+function reminder(c,msg,detail="",badgeClass="") {
+  const digits=c.phone.replace(/\D/g,"");
+  const whatsapp=digits.startsWith("55")?digits:`55${digits}`;
+  const action=c.optIn?`<a class="btn btn-outline ${badgeClass}" target="_blank" href="https://wa.me/${whatsapp}?text=${encodeURIComponent(msg)}">Enviar</a>`:'<span class="badge">Sem consentimento</span>';
+  return `<div class="list-card"><span><b>${c.name}</b><br><small class="muted">${detail?`${detail} · `:""}${c.phone}</small></span>${action}</div>`;
 }
 function render() {
   if(PLATFORM_ENTRY) document.title="Chrona | Administração da plataforma";
