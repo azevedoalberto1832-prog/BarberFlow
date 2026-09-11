@@ -9,7 +9,7 @@ A **PALAZZO STUDIO BARBER** é o primeiro tenant real e a **Nayara Lash Designer
 - Catálogo público de serviços e contato por WhatsApp.
 - Agendamento autônomo em quatro passos, com soma de preço/duração e bloqueio de conflitos.
 - Área administrativa responsiva: dashboard, agenda, clientes, caixa, lembretes, serviços e configurações.
-- Lembretes de aniversário e retorno com período configurável por serviço.
+- Lembretes de aniversário e retorno com período configurável por serviço e padrão de 30 dias.
 - Persistência operacional no Supabase/PostgreSQL; o navegador não é a fonte da verdade.
 - Autenticação administrativa, isolamento multi-tenant por RLS e controle de assinatura.
 - Conclusão de atendimento com lançamento idempotente no caixa.
@@ -17,7 +17,7 @@ A **PALAZZO STUDIO BARBER** é o primeiro tenant real e a **Nayara Lash Designer
 - Super Admin Chrona para gestão central de tenants, planos, trials e suspensão.
 - CRM multi-tenant com pipelines, etapas, oportunidades, próximas ações e acompanhamento de ganhos e perdas.
 - Conclusão do atendimento agenda automaticamente o próximo retorno conforme os serviços realizados.
-- Esqueleto de automações, n8n e WhatsApp oficial, sem disparos reais nesta fase.
+- Fila de automações com consumo autenticado pelo n8n, lease transacional e proteção contra duplicidade; o envio real pelo WhatsApp permanece desativado nesta fase.
 
 ## Arquitetura e evolução
 

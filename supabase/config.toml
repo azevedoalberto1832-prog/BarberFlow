@@ -1,0 +1,4 @@
+project_id = "qcjjqdkjfvnbslbpnrgk"
+
+[functions.automation-queue]
+verify_jwt = false

@@ -259,7 +259,7 @@ function openAdminForm(kind, id = "") {
       name: "",
       price: 50,
       duration: 30,
-      returnDays: 20,
+      returnDays: 30,
       desc: "",
     };
     title = id ? "Editar serviço" : "Novo serviço";

@@ -22,13 +22,14 @@ evento Chrona → regra do tenant → execução deduplicada → consentimento e
 - Históricos de execução, mensagens e webhooks são somente leitura para o tenant.
 - `deduplication_key` impede mensagens repetidas em reprocessamentos.
 - `whatsapp_opt_in` e opt-out devem ser verificados antes de cada envio.
+- O endpoint do n8n usa uma credencial exclusiva no servidor; ela não concede acesso direto às tabelas.
+- A retirada da fila usa lease, limite de tentativas e `SKIP LOCKED` para impedir processamento simultâneo da mesma execução.
 
 ## Próximas implementações
 
-O CRUD de pipelines, etapas e oportunidades já está disponível no painel administrativo, com próximas ações, valor estimado e estados de ganho ou perda. Cada serviço também possui um período próprio de retorno; ao concluir o atendimento, a menor janela configurada entre os serviços realizados agenda o próximo contato do cliente.
+O CRUD de pipelines, etapas e oportunidades já está disponível no painel administrativo, com próximas ações, valor estimado e estados de ganho ou perda. Cada serviço também possui um período próprio de retorno, com padrão de 30 dias; ao concluir o atendimento, a menor janela configurada entre os serviços realizados agenda o próximo contato do cliente. O endpoint autenticado da fila já está pronto para o n8n reservar e finalizar execuções.
 
-1. Endpoint autenticado para o n8n consumir a fila.
-2. Cofre de segredos e Meta Cloud API.
-3. Webhook assinado para entrega e leitura.
-4. Opt-out, janela de 24 horas e templates aprovados.
-5. Métricas de conversão e reativação.
+1. Cofre de segredos e Meta Cloud API.
+2. Webhook assinado para entrega e leitura.
+3. Opt-out, janela de 24 horas e templates aprovados.
+4. Métricas de conversão e reativação.
