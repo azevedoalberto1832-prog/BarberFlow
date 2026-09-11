@@ -708,6 +708,14 @@ body[data-tenant="nayara-lash"] .toast { background: #d88fa5; color: #fff; }
 .chrona-login .panel { background:#11172a;border-color:#26304b;box-shadow:0 24px 70px rgba(0,0,0,.35); }
 .chrona-login .muted { color:#9ba7c3; }
 .chrona-login .field input { background:#0b1020;color:#eef2ff;border-color:#26304b; }
+body[data-tenant="chrona"] {
+  --ink:#eef2ff;--paper:#080b16;--card:#11172a;--line:#26304b;--copper:#748ffc;--copper2:#9caeff;--muted:#9ba7c3;
+}
+.chrona-site.topbar { background:rgba(8,11,22,.92); }
+.chrona-site .hero { background:radial-gradient(circle at 78% 15%,rgba(116,143,252,.2),transparent 34%),linear-gradient(135deg,#080b16,#11172a); }
+.chrona-site .service-card,.chrona-site .hero-card { background:#11172a;border-color:#26304b; }
+.chrona-site .brand-logo { background:linear-gradient(145deg,#748ffc,#4c63d2);color:#fff; }
+.chrona-site .btn-dark { color:#fff; }
 @media (max-width: 900px) {
   .hero-grid,
   .split {

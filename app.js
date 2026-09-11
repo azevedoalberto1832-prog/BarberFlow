@@ -2,10 +2,11 @@ const SUPABASE_URL = "https://qcjjqdkjfvnbslbpnrgk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_27mV2bABNSGQYPkGEF-T4g_XBQtb2r7";
 const PAGE_PARAMS = new URLSearchParams(location.search);
 const PLATFORM_ENTRY = PAGE_PARAMS.has("platform");
-const SHOP_SLUG = PAGE_PARAMS.get("tenant") || "palazzo";
+const SHOP_SLUG = PAGE_PARAMS.get("tenant");
+const CHRONA_HOME = !SHOP_SLUG && !PLATFORM_ENTRY;
 const AUTH_CALLBACK = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : "");
 const PASSWORD_FLOW = ["recovery","invite"].includes(AUTH_CALLBACK.get("type")) && !!AUTH_CALLBACK.get("access_token");
-document.body.dataset.tenant = SHOP_SLUG;
+document.body.dataset.tenant = SHOP_SLUG || "chrona";
 let authSession = JSON.parse(sessionStorage.getItem("chrona-session") || "null");
 async function rpc(name, body) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
@@ -357,6 +358,10 @@ function publicPage() {
       "",
     )}</div></div></section><section class="section"><div class="container"><div class="location"><div><div class="eyebrow">Endereço</div><h2 style="font-size:38px;margin:8px 0">${db.settings.shop}</h2><p>${db.settings.address}</p></div><div><button class="btn btn-copper" data-book>Agendar horário</button> <a class="btn btn-outline" target="_blank" href="https://maps.google.com/?q=${encodeURIComponent(db.settings.address)}">Abrir no mapa</a></div></div></div></section></main><footer class="footer"><div class="container"><span>© ${db.settings.shop}</span><div>${social}<button class="btn btn-outline" data-admin>Área da empresa</button></div></div></footer>`;
 }
+function chronaHomePage(){
+  document.title="Chrona | Agenda e gestão para negócios";
+  return `<header class="topbar chrona-site"><div class="container"><div class="brand"><span class="brand-logo" style="display:grid;place-items:center;font-weight:800">C</span><div>CHRONA<small>AGENDA · GESTÃO · RELACIONAMENTO</small></div></div><div><a class="btn btn-outline" href="#plataforma">Plataforma</a> <a class="btn btn-dark" href="?platform=chrona#admin">Entrar</a></div></div></header><main class="chrona-site"><section class="hero"><div class="container hero-grid"><div><div class="eyebrow">SaaS MULTI-TENANT</div><h1>Tempo organizado. Negócios em movimento.</h1><p>A Chrona conecta agenda, clientes, caixa e relacionamento em uma única plataforma para empresas que trabalham com atendimento por horário.</p><div class="hero-actions"><a class="btn btn-dark" href="#demonstracoes">Ver demonstrações</a><a class="btn btn-outline" href="?platform=chrona#admin">Administração Chrona</a></div></div><div class="hero-card"><div class="eyebrow">UMA PLATAFORMA</div><h2 style="font-size:42px;margin:12px 0">Vários negócios.<br>Dados isolados.</h2><p>Cada empresa possui identidade, serviços, equipe, clientes e operação próprios.</p></div></div></section><section class="section" id="plataforma"><div class="container"><div class="section-head"><div><div class="eyebrow">PLATAFORMA</div><h2>Base pronta para crescer</h2></div></div><div class="service-grid"><article class="service-card"><div class="eyebrow">OPERAÇÃO</div><h3>Agenda inteligente</h3><p class="muted">Disponibilidade real, múltiplos serviços e bloqueio contra sobreposição.</p></article><article class="service-card"><div class="eyebrow">GESTÃO</div><h3>Clientes e caixa</h3><p class="muted">Atendimento, histórico, pagamentos e indicadores conectados.</p></article><article class="service-card"><div class="eyebrow">EVOLUÇÃO</div><h3>CRM e automações</h3><p class="muted">Arquitetura preparada para retenção e WhatsApp oficial.</p></article></div></div></section><section class="section" id="demonstracoes"><div class="container"><div class="section-head"><div><div class="eyebrow">TENANTS</div><h2>Demonstrações da plataforma</h2></div></div><div class="split"><article class="service-card"><div class="eyebrow">BARBEARIA</div><h3>Palazzo Studio Barber</h3><p class="muted">Primeiro tenant real da Chrona.</p><a class="btn btn-outline" href="?tenant=palazzo">Abrir demonstração</a></article><article class="service-card"><div class="eyebrow">LASH DESIGNER</div><h3>Nayara Lash Designer</h3><p class="muted">Tenant de validação multi-segmento.</p><a class="btn btn-outline" href="?tenant=nayara-lash">Abrir demonstração</a></article></div></div></section></main><footer class="footer chrona-site"><div class="container"><span>© Chrona</span><span class="muted">Uma aplicação. Várias empresas.</span></div></footer>`;
+}
 async function loadAdminData() {
   if(!authSession) return;
   const profiles=await rest("profiles?select=id,barbershop_id,name,role,active&auth_user_id=eq."+encodeURIComponent(authSession.user.id));
@@ -564,7 +569,7 @@ function reminder(c, msg) {
 }
 function render() {
   if(PLATFORM_ENTRY) document.title="Chrona | Administração da plataforma";
-  app.innerHTML = PASSWORD_FLOW ? passwordPage() : location.hash === "#admin" ? (!authSession ? loginPage() : !adminLoaded ? loadingPage() : currentProfile?.role==="platform_admin" ? platformPage() : currentSubscription?.status==="suspended" ? suspendedPage() : adminPage()) : publicPage();
+  app.innerHTML = PASSWORD_FLOW ? passwordPage() : location.hash === "#admin" ? (!authSession ? loginPage() : !adminLoaded ? loadingPage() : currentProfile?.role==="platform_admin" ? platformPage() : currentSubscription?.status==="suspended" ? suspendedPage() : adminPage()) : CHRONA_HOME ? chronaHomePage() : publicPage();
   bind();
 }
 function bind() {
@@ -865,4 +870,4 @@ function refreshModal() {
 }
 window.addEventListener("hashchange", render);
 app.innerHTML = `<main class="section"><div class="container empty"><h2>Carregando…</h2><p>Preparando o ambiente Chrona.</p></div></main>`;
-(PLATFORM_ENTRY?Promise.resolve():loadPublicData()).then(async()=>{if(PLATFORM_ENTRY) location.hash="admin";if(authSession&&location.hash==="#admin"){try{await loadAdminData();render();}catch(error){authSession=null;sessionStorage.removeItem("chrona-session");render();toast(error.message);}}else render();});
+((PLATFORM_ENTRY||CHRONA_HOME)?Promise.resolve():loadPublicData()).then(async()=>{if(PLATFORM_ENTRY) location.hash="admin";if(authSession&&location.hash==="#admin"){try{await loadAdminData();render();}catch(error){authSession=null;sessionStorage.removeItem("chrona-session");render();toast(error.message);}}else render();});
