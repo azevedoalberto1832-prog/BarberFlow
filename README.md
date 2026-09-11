@@ -14,10 +14,12 @@ A **PALAZZO STUDIO BARBER** é o primeiro tenant real e a **Nayara Lash Designer
 - Autenticação administrativa, isolamento multi-tenant por RLS e controle de assinatura.
 - Conclusão de atendimento com lançamento idempotente no caixa.
 - CRUD persistente de clientes, serviços, profissionais, movimentações e configurações.
+- Super Admin Chrona para gestão central de tenants, planos, trials e suspensão.
+- Esqueleto multi-tenant de CRM, automações, n8n e WhatsApp oficial, sem disparos reais nesta fase.
 
 ## Arquitetura e evolução
 
-A aplicação usa um único banco multi-tenant no Supabase. Cada registro operacional pertence a um estabelecimento e as políticas RLS aplicam o isolamento no banco. O tenant público é selecionado por `?tenant=<slug>`; Palazzo e Nayara usam o mesmo código e dados isolados. CRM e automação oficial de WhatsApp entram somente depois dessa validação.
+A aplicação usa um único banco multi-tenant no Supabase. Cada registro operacional pertence a um estabelecimento e as políticas RLS aplicam o isolamento no banco. O tenant público é selecionado por `?tenant=<slug>`; Palazzo e Nayara usam o mesmo código e dados isolados. A fundação de CRM e automações está documentada em `ARCHITECTURE.md` e permanece desativada até a integração oficial.
 
 ## Execução local
 
