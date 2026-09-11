@@ -198,7 +198,7 @@ let booking = {
 let adminTab = "dashboard";
 let cashTab = "movimentos";
 let agendaDate = addDays(1);
-let currentProfile=null,currentShop=null,currentSubscription=null,adminLoaded=false;
+let currentProfile=null,currentShop=null,currentSubscription=null,adminLoaded=false,platformTenants=[];
 const save = () => {};
 let remoteSlots = [], slotProfessionals = {}, slotsLoaded = false;
 const money = (v) =>
@@ -346,6 +346,16 @@ async function loadAdminData() {
   const profiles=await rest("profiles?select=id,barbershop_id,name,role,active&auth_user_id=eq."+encodeURIComponent(authSession.user.id));
   currentProfile=profiles?.[0];
   if(!currentProfile?.active) throw new Error("Usuário sem acesso ativo.");
+  if(currentProfile.role==="platform_admin"){
+    const [shops,subscriptions,profilesAll,appointments]=await Promise.all([
+      rest("barbershops?select=*&order=created_at.desc"),
+      rest("subscriptions?select=*&order=created_at.desc"),
+      rest("profiles?select=id,barbershop_id,role,active"),
+      rest("appointments?select=id,barbershop_id,status")
+    ]);
+    platformTenants=(shops||[]).map(shop=>({shop,subscription:(subscriptions||[]).find(s=>s.barbershop_id===shop.id),users:(profilesAll||[]).filter(p=>p.barbershop_id===shop.id).length,appointments:(appointments||[]).filter(a=>a.barbershop_id===shop.id).length}));
+    adminLoaded=true; return;
+  }
   const shops=await rest(`barbershops?select=*&id=eq.${currentProfile.barbershop_id}`); currentShop=shops?.[0];
   const [services,professionals,clients,appointments,cash,subscriptions,categories]=await Promise.all([
     rest(`services?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
@@ -369,6 +379,16 @@ async function loadAdminData() {
 function loginPage(){return `<main class="section"><div class="container"><section class="panel" style="max-width:460px;margin:7vh auto"><div class="eyebrow">CHRONA</div><h2>Acesso da empresa</h2><p class="muted">Entre com a conta vinculada ao seu estabelecimento.</p><form id="login-form"><label class="field"><span>E-mail</span><input name="email" type="email" autocomplete="username" required></label><label class="field"><span>Senha</span><input name="password" type="password" autocomplete="current-password" required></label><div class="modal-actions"><button type="button" class="btn btn-outline" data-public>Voltar</button><button class="btn btn-dark" type="submit">Entrar</button></div></form></section></div></main>`}
 function loadingPage(){return `<main class="section"><div class="container empty"><h2>Carregando painel…</h2><p>Sincronizando os dados da empresa.</p></div></main>`}
 function suspendedPage(){return `<main class="section"><div class="container"><section class="panel" style="max-width:620px;margin:8vh auto;text-align:center"><div class="eyebrow">CHRONA</div><h2>Assinatura suspensa</h2><p class="muted">A assinatura Chrona deste estabelecimento está suspensa. Os dados permanecem preservados. Entre em contato para regularização.</p><button class="btn btn-outline" data-logout>Sair</button></section></div></main>`}
+function platformPage(){
+  const active=platformTenants.filter(t=>t.shop.active&&["active","trial"].includes(t.subscription?.status)).length;
+  const trials=platformTenants.filter(t=>t.subscription?.status==="trial").length;
+  return `<div class="admin chrona-platform"><main class="admin-main" style="max-width:1200px;margin:auto"><header class="admin-header"><div><div class="eyebrow">SUPER ADMIN</div><h1>Chrona</h1><p class="muted">Empresas, planos e operação da plataforma.</p></div><div><button class="btn btn-outline" data-logout>Sair</button> <button class="btn btn-dark" data-new-tenant>+ Nova empresa</button></div></header><div class="metrics"><div class="metric"><small>Empresas</small><b>${platformTenants.length}</b></div><div class="metric"><small>Operando</small><b>${active}</b></div><div class="metric"><small>Em trial</small><b>${trials}</b></div><div class="metric"><small>Agendamentos</small><b>${platformTenants.reduce((n,t)=>n+t.appointments,0)}</b></div></div><section class="panel"><div class="toolbar"><div><h3 style="margin:0">Tenants</h3><small class="muted">Uma aplicação, dados isolados por empresa.</small></div></div><div class="table-wrap"><table><thead><tr><th>Empresa</th><th>Segmento</th><th>Plano</th><th>Status</th><th>Usuários</th><th>Agendamentos</th><th>Ações</th></tr></thead><tbody>${platformTenants.map(t=>`<tr><td><b>${t.shop.name}</b><br><small class="muted">${t.shop.slug}</small></td><td>${t.shop.business_type||"services"}</td><td>${t.subscription?.plan||"—"}</td><td><span class="badge ${t.subscription?.status==="suspended"?"red":"green"}">${t.subscription?.status||"—"}</span></td><td>${t.users}</td><td>${t.appointments}</td><td><a class="btn btn-ghost" target="_blank" href="?tenant=${t.shop.slug}">Abrir</a><button class="btn btn-ghost" data-platform-status="${t.shop.id}" data-next-status="${t.subscription?.status==="suspended"?"active":"suspended"}">${t.subscription?.status==="suspended"?"Ativar":"Suspender"}</button></td></tr>`).join("")}</tbody></table></div></section></main></div>`;
+}
+function openTenantForm(){
+  document.body.insertAdjacentHTML("beforeend",`<div class="modal" id="tenant-modal"><div class="modal-card" style="max-width:650px"><div class="modal-head"><div><div class="eyebrow">CHRONA</div><h3>Nova empresa</h3></div><button class="btn btn-ghost" data-tenant-close>✕</button></div><form id="tenant-form" class="modal-body"><div class="form-grid"><label class="field full"><span>Nome da empresa</span><input name="name" required></label><label class="field"><span>Slug do link</span><input name="slug" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="studio-exemplo" required></label><label class="field"><span>WhatsApp</span><input name="phone" inputmode="tel" required></label><label class="field"><span>Segmento</span><select name="business"><option value="beauty">Beleza</option><option value="barber">Barbearia</option><option value="lash">Lash Designer</option><option value="services">Outros serviços</option></select></label><label class="field"><span>Plano</span><select name="plan"><option value="essential">Essential</option><option value="pro">Pro</option></select></label></div><div class="modal-actions"><button type="button" class="btn btn-outline" data-tenant-close>Cancelar</button><button class="btn btn-dark" type="submit">Criar tenant</button></div></form></div></div>`);
+  document.querySelectorAll("[data-tenant-close]").forEach(x=>x.onclick=()=>document.querySelector("#tenant-modal")?.remove());
+  document.querySelector("#tenant-form").onsubmit=async e=>{e.preventDefault();const b=e.currentTarget.querySelector("button[type=submit]");b.disabled=true;const f=new FormData(e.currentTarget);try{await rpc("create_tenant",{tenant_name:f.get("name"),tenant_slug:f.get("slug"),tenant_business_type:f.get("business"),tenant_phone:f.get("phone"),tenant_plan:f.get("plan"),tenant_theme:"rose"});await loadAdminData();document.querySelector("#tenant-modal")?.remove();render();toast("Nova empresa criada com sucesso");}catch(error){toast(error.message);b.disabled=false;}};
+}
 function availableSlots() {
   if (slotsLoaded) return remoteSlots;
   let dur = total().duration || 30,
@@ -522,12 +542,14 @@ function reminder(c, msg) {
   return `<div class="list-card"><span><b>${c.name}</b><br><small class="muted">${c.phone}</small></span><a class="btn btn-outline" target="_blank" href="https://wa.me/55${c.phone}?text=${encodeURIComponent(msg)}">Enviar</a></div>`;
 }
 function render() {
-  app.innerHTML = location.hash === "#admin" ? (!authSession ? loginPage() : !adminLoaded ? loadingPage() : currentSubscription?.status==="suspended" ? suspendedPage() : adminPage()) : publicPage();
+  app.innerHTML = location.hash === "#admin" ? (!authSession ? loginPage() : !adminLoaded ? loadingPage() : currentProfile?.role==="platform_admin" ? platformPage() : currentSubscription?.status==="suspended" ? suspendedPage() : adminPage()) : publicPage();
   bind();
 }
 function bind() {
   document.querySelector("#login-form")?.addEventListener("submit",async(e)=>{e.preventDefault();const button=e.currentTarget.querySelector("button[type=submit]");button.disabled=true;try{const form=new FormData(e.currentTarget);await signIn(form.get("email"),form.get("password"));await loadAdminData();render();toast("Acesso autorizado");}catch(error){toast(error.message);button.disabled=false;}});
   document.querySelector("[data-logout]")?.addEventListener("click",()=>{authSession=null;adminLoaded=false;currentProfile=currentShop=currentSubscription=null;sessionStorage.removeItem("chrona-session");render();});
+  document.querySelector("[data-new-tenant]")?.addEventListener("click",openTenantForm);
+  document.querySelectorAll("[data-platform-status]").forEach(x=>x.onclick=async()=>{try{await rest(`subscriptions?barbershop_id=eq.${x.dataset.platformStatus}`,{method:"PATCH",body:{status:x.dataset.nextStatus}});await loadAdminData();render();toast(x.dataset.nextStatus==="suspended"?"Empresa suspensa; dados preservados":"Empresa reativada");}catch(error){toast(error.message);}});
   document.querySelectorAll("[data-book]").forEach(
     (b) =>
       (b.onclick = () => {

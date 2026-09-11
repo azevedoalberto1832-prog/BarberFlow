@@ -688,6 +688,18 @@ body[data-tenant="nayara-lash"] .nav button:hover {
 body[data-tenant="nayara-lash"] .badge { background: #f0e2e1; }
 body[data-tenant="nayara-lash"] .mobile-nav { background: #fffaf7; }
 body[data-tenant="nayara-lash"] .toast { background: #d88fa5; color: #fff; }
+.chrona-platform {
+  --ink: #eef2ff;
+  --paper: #080b16;
+  --card: #11172a;
+  --line: #26304b;
+  --copper: #748ffc;
+  --copper2: #9caeff;
+  --muted: #9ba7c3;
+  background: radial-gradient(circle at 80% 0,rgba(116,143,252,.13),transparent 34%),#080b16;
+  color: var(--ink);
+}
+.chrona-platform .admin-main { min-height: 100vh; }
 @media (max-width: 900px) {
   .hero-grid,
   .split {
