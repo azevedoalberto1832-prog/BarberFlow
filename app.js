@@ -1,6 +1,8 @@
 const SUPABASE_URL = "https://qcjjqdkjfvnbslbpnrgk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_27mV2bABNSGQYPkGEF-T4g_XBQtb2r7";
-const SHOP_SLUG = new URLSearchParams(location.search).get("tenant") || "palazzo";
+const PAGE_PARAMS = new URLSearchParams(location.search);
+const PLATFORM_ENTRY = PAGE_PARAMS.has("platform");
+const SHOP_SLUG = PAGE_PARAMS.get("tenant") || "palazzo";
 document.body.dataset.tenant = SHOP_SLUG;
 let authSession = JSON.parse(sessionStorage.getItem("chrona-session") || "null");
 async function rpc(name, body) {
@@ -376,7 +378,7 @@ async function loadAdminData() {
   if(currentShop) db.settings={shop:currentShop.name,address:currentShop.address||"",phone:currentShop.phone||"",open:currentShop.opening_time?.slice(0,5)||"09:00",close:currentShop.closing_time?.slice(0,5)||"19:00",breakStart:currentShop.break_start?.slice(0,5)||"",breakEnd:currentShop.break_end?.slice(0,5)||"",greeting:currentShop.whatsapp_message||"",instagram:currentShop.instagram||"",logo:currentShop.logo_url||"palazzo-logo.jpg"};
   adminLoaded=true;
 }
-function loginPage(){return `<main class="section"><div class="container"><section class="panel" style="max-width:460px;margin:7vh auto"><div class="eyebrow">CHRONA</div><h2>Acesso da empresa</h2><p class="muted">Entre com a conta vinculada ao seu estabelecimento.</p><form id="login-form"><label class="field"><span>E-mail</span><input name="email" type="email" autocomplete="username" required></label><label class="field"><span>Senha</span><input name="password" type="password" autocomplete="current-password" required></label><div class="modal-actions"><button type="button" class="btn btn-outline" data-public>Voltar</button><button class="btn btn-dark" type="submit">Entrar</button></div></form></section></div></main>`}
+function loginPage(){return `<main class="section chrona-login"><div class="container"><section class="panel" style="max-width:460px;margin:7vh auto"><div class="eyebrow">CHRONA</div><h2>${PLATFORM_ENTRY?"Administração da plataforma":"Acesso da empresa"}</h2><p class="muted">${PLATFORM_ENTRY?"Acesso exclusivo do proprietário da Chrona.":"Entre com a conta vinculada ao seu estabelecimento."}</p><form id="login-form"><label class="field"><span>E-mail</span><input name="email" type="email" autocomplete="username" required></label><label class="field"><span>Senha</span><input name="password" type="password" autocomplete="current-password" required></label><div class="modal-actions"><button type="button" class="btn btn-outline" data-public>Voltar</button><button class="btn btn-dark" type="submit">Entrar</button></div></form></section></div></main>`}
 function loadingPage(){return `<main class="section"><div class="container empty"><h2>Carregando painel…</h2><p>Sincronizando os dados da empresa.</p></div></main>`}
 function suspendedPage(){return `<main class="section"><div class="container"><section class="panel" style="max-width:620px;margin:8vh auto;text-align:center"><div class="eyebrow">CHRONA</div><h2>Assinatura suspensa</h2><p class="muted">A assinatura Chrona deste estabelecimento está suspensa. Os dados permanecem preservados. Entre em contato para regularização.</p><button class="btn btn-outline" data-logout>Sair</button></section></div></main>`}
 function platformPage(){
@@ -542,6 +544,7 @@ function reminder(c, msg) {
   return `<div class="list-card"><span><b>${c.name}</b><br><small class="muted">${c.phone}</small></span><a class="btn btn-outline" target="_blank" href="https://wa.me/55${c.phone}?text=${encodeURIComponent(msg)}">Enviar</a></div>`;
 }
 function render() {
+  if(PLATFORM_ENTRY) document.title="Chrona | Administração da plataforma";
   app.innerHTML = location.hash === "#admin" ? (!authSession ? loginPage() : !adminLoaded ? loadingPage() : currentProfile?.role==="platform_admin" ? platformPage() : currentSubscription?.status==="suspended" ? suspendedPage() : adminPage()) : publicPage();
   bind();
 }
@@ -576,7 +579,7 @@ function bind() {
     location.hash = "admin";
   });
   document.querySelector("[data-public]")?.addEventListener("click", () => {
-    location.hash = "";
+    location.href = PLATFORM_ENTRY ? location.pathname : `${location.pathname}?tenant=${currentShop?.slug||SHOP_SLUG}`;
   });
   document.querySelectorAll("[data-tab]").forEach(
     (x) =>
@@ -840,5 +843,5 @@ function refreshModal() {
   bindBooking();
 }
 window.addEventListener("hashchange", render);
-app.innerHTML = `<main class="section"><div class="container empty"><h2>Carregando agenda…</h2><p>Buscando serviços e horários disponíveis.</p></div></main>`;
-loadPublicData().then(async()=>{if(authSession&&location.hash==="#admin"){try{await loadAdminData();render();}catch(error){authSession=null;sessionStorage.removeItem("chrona-session");render();toast(error.message);}}});
+app.innerHTML = `<main class="section"><div class="container empty"><h2>Carregando…</h2><p>Preparando o ambiente Chrona.</p></div></main>`;
+(PLATFORM_ENTRY?Promise.resolve():loadPublicData()).then(async()=>{if(PLATFORM_ENTRY) location.hash="admin";if(authSession&&location.hash==="#admin"){try{await loadAdminData();render();}catch(error){authSession=null;sessionStorage.removeItem("chrona-session");render();toast(error.message);}}else render();});

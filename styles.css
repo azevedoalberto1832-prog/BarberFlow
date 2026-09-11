@@ -700,6 +700,14 @@ body[data-tenant="nayara-lash"] .toast { background: #d88fa5; color: #fff; }
   color: var(--ink);
 }
 .chrona-platform .admin-main { min-height: 100vh; }
+.chrona-login {
+  min-height: 100vh;
+  color: #eef2ff;
+  background: radial-gradient(circle at 75% 10%,rgba(116,143,252,.18),transparent 35%),#080b16;
+}
+.chrona-login .panel { background:#11172a;border-color:#26304b;box-shadow:0 24px 70px rgba(0,0,0,.35); }
+.chrona-login .muted { color:#9ba7c3; }
+.chrona-login .field input { background:#0b1020;color:#eef2ff;border-color:#26304b; }
 @media (max-width: 900px) {
   .hero-grid,
   .split {
