@@ -3,6 +3,8 @@ const SUPABASE_KEY = "sb_publishable_27mV2bABNSGQYPkGEF-T4g_XBQtb2r7";
 const PAGE_PARAMS = new URLSearchParams(location.search);
 const PLATFORM_ENTRY = PAGE_PARAMS.has("platform");
 const SHOP_SLUG = PAGE_PARAMS.get("tenant") || "palazzo";
+const AUTH_CALLBACK = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : "");
+const PASSWORD_FLOW = ["recovery","invite"].includes(AUTH_CALLBACK.get("type")) && !!AUTH_CALLBACK.get("access_token");
 document.body.dataset.tenant = SHOP_SLUG;
 let authSession = JSON.parse(sessionStorage.getItem("chrona-session") || "null");
 async function rpc(name, body) {
@@ -20,6 +22,18 @@ async function signIn(email,password) {
   const data=await response.json();
   if(!response.ok) throw new Error(data.error_description || data.msg || "E-mail ou senha inválidos");
   authSession=data; sessionStorage.setItem("chrona-session",JSON.stringify(data)); return data;
+}
+async function requestPasswordReset(email){
+  const redirectTo=`${location.origin}${location.pathname}${location.search}`;
+  const response=await fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`,{method:"POST",headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})});
+  const data=await response.json().catch(()=>null);
+  if(!response.ok) throw new Error(data?.msg||data?.message||"Não foi possível enviar o link agora");
+}
+async function updatePassword(password){
+  const response=await fetch(`${SUPABASE_URL}/auth/v1/user`,{method:"PUT",headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${AUTH_CALLBACK.get("access_token")}`,"Content-Type":"application/json"},body:JSON.stringify({password})});
+  const data=await response.json().catch(()=>null);
+  if(!response.ok) throw new Error(data?.msg||data?.message||"O link expirou. Solicite um novo.");
+  return data;
 }
 async function rest(path,{method="GET",body,prefer="return=representation"}={}) {
   if(!authSession?.access_token) throw new Error("Sessão expirada. Entre novamente.");
@@ -378,7 +392,8 @@ async function loadAdminData() {
   if(currentShop) db.settings={shop:currentShop.name,address:currentShop.address||"",phone:currentShop.phone||"",open:currentShop.opening_time?.slice(0,5)||"09:00",close:currentShop.closing_time?.slice(0,5)||"19:00",breakStart:currentShop.break_start?.slice(0,5)||"",breakEnd:currentShop.break_end?.slice(0,5)||"",greeting:currentShop.whatsapp_message||"",instagram:currentShop.instagram||"",logo:currentShop.logo_url||"palazzo-logo.jpg"};
   adminLoaded=true;
 }
-function loginPage(){return `<main class="section chrona-login"><div class="container"><section class="panel" style="max-width:460px;margin:7vh auto"><div class="eyebrow">CHRONA</div><h2>${PLATFORM_ENTRY?"Administração da plataforma":"Acesso da empresa"}</h2><p class="muted">${PLATFORM_ENTRY?"Acesso exclusivo do proprietário da Chrona.":"Entre com a conta vinculada ao seu estabelecimento."}</p><form id="login-form"><label class="field"><span>E-mail</span><input name="email" type="email" autocomplete="username" required></label><label class="field"><span>Senha</span><input name="password" type="password" autocomplete="current-password" required></label><div class="modal-actions"><button type="button" class="btn btn-outline" data-public>Voltar</button><button class="btn btn-dark" type="submit">Entrar</button></div></form></section></div></main>`}
+function loginPage(){return `<main class="section chrona-login"><div class="container"><section class="panel" style="max-width:460px;margin:7vh auto"><div class="eyebrow">CHRONA</div><h2>${PLATFORM_ENTRY?"Administração da plataforma":"Acesso da empresa"}</h2><p class="muted">${PLATFORM_ENTRY?"Acesso exclusivo do proprietário da Chrona.":"Entre com a conta vinculada ao seu estabelecimento."}</p><form id="login-form"><label class="field"><span>E-mail</span><input name="email" type="email" autocomplete="username" required></label><label class="field"><span>Senha</span><input name="password" type="password" autocomplete="current-password" required></label><button type="button" class="btn btn-ghost" data-forgot>Esqueci minha senha</button><div class="modal-actions"><button type="button" class="btn btn-outline" data-public>Voltar</button><button class="btn btn-dark" type="submit">Entrar</button></div></form></section></div></main>`}
+function passwordPage(){return `<main class="section chrona-login"><div class="container"><section class="panel" style="max-width:460px;margin:7vh auto"><div class="eyebrow">CHRONA</div><h2>Crie sua senha</h2><p class="muted">Defina uma senha pessoal com pelo menos oito caracteres.</p><form id="password-form"><label class="field"><span>Nova senha</span><input name="password" type="password" minlength="8" autocomplete="new-password" required></label><label class="field"><span>Confirmar senha</span><input name="confirm" type="password" minlength="8" autocomplete="new-password" required></label><div class="modal-actions"><span></span><button class="btn btn-dark" type="submit">Salvar minha senha</button></div></form></section></div></main>`}
 function loadingPage(){return `<main class="section"><div class="container empty"><h2>Carregando painel…</h2><p>Sincronizando os dados da empresa.</p></div></main>`}
 function suspendedPage(){return `<main class="section"><div class="container"><section class="panel" style="max-width:620px;margin:8vh auto;text-align:center"><div class="eyebrow">CHRONA</div><h2>Assinatura suspensa</h2><p class="muted">A assinatura Chrona deste estabelecimento está suspensa. Os dados permanecem preservados. Entre em contato para regularização.</p><button class="btn btn-outline" data-logout>Sair</button></section></div></main>`}
 function platformPage(){
@@ -545,11 +560,13 @@ function reminder(c, msg) {
 }
 function render() {
   if(PLATFORM_ENTRY) document.title="Chrona | Administração da plataforma";
-  app.innerHTML = location.hash === "#admin" ? (!authSession ? loginPage() : !adminLoaded ? loadingPage() : currentProfile?.role==="platform_admin" ? platformPage() : currentSubscription?.status==="suspended" ? suspendedPage() : adminPage()) : publicPage();
+  app.innerHTML = PASSWORD_FLOW ? passwordPage() : location.hash === "#admin" ? (!authSession ? loginPage() : !adminLoaded ? loadingPage() : currentProfile?.role==="platform_admin" ? platformPage() : currentSubscription?.status==="suspended" ? suspendedPage() : adminPage()) : publicPage();
   bind();
 }
 function bind() {
+  document.querySelector("#password-form")?.addEventListener("submit",async e=>{e.preventDefault();const f=new FormData(e.currentTarget),password=f.get("password"),confirm=f.get("confirm"),button=e.currentTarget.querySelector("button[type=submit]");if(password!==confirm)return toast("As senhas precisam ser iguais");button.disabled=true;try{await updatePassword(password);sessionStorage.removeItem("chrona-session");alert("Senha criada com sucesso. Entre com seu e-mail e a nova senha.");location.href=`${location.pathname}${location.search}#admin`;}catch(error){toast(error.message);button.disabled=false;}});
   document.querySelector("#login-form")?.addEventListener("submit",async(e)=>{e.preventDefault();const button=e.currentTarget.querySelector("button[type=submit]");button.disabled=true;try{const form=new FormData(e.currentTarget);await signIn(form.get("email"),form.get("password"));await loadAdminData();render();toast("Acesso autorizado");}catch(error){toast(error.message);button.disabled=false;}});
+  document.querySelector("[data-forgot]")?.addEventListener("click",async()=>{const email=document.querySelector('#login-form [name=email]').value.trim();if(!email)return toast("Digite seu e-mail primeiro");try{await requestPasswordReset(email);toast("Se o e-mail estiver cadastrado, o link será enviado");}catch(error){toast(error.message);}});
   document.querySelector("[data-logout]")?.addEventListener("click",()=>{authSession=null;adminLoaded=false;currentProfile=currentShop=currentSubscription=null;sessionStorage.removeItem("chrona-session");render();});
   document.querySelector("[data-new-tenant]")?.addEventListener("click",openTenantForm);
   document.querySelectorAll("[data-platform-status]").forEach(x=>x.onclick=async()=>{try{await rest(`subscriptions?barbershop_id=eq.${x.dataset.platformStatus}`,{method:"PATCH",body:{status:x.dataset.nextStatus}});await loadAdminData();render();toast(x.dataset.nextStatus==="suspended"?"Empresa suspensa; dados preservados":"Empresa reativada");}catch(error){toast(error.message);}});
