@@ -45,4 +45,6 @@ Cada item retorna um `leaseToken`. A reserva impede consumo duplicado e expira c
 
 `outcome` aceita `sent`, `failed` ou `retry`. Em `retry`, `retryAfterSeconds` pode variar de 60 a 3600 segundos.
 
+Para uma regra de WhatsApp, prefira chamar `whatsapp-send` com o `runId`, o `leaseToken` e os componentes do template. Essa função conversa com a Meta usando o token guardado no Vault e conclui a fila automaticamente; o n8n nunca recebe o token da Meta.
+
 Somente regras ativas, tenants com assinatura válida e clientes com consentimento são liberados. Mensagens de WhatsApp também exigem uma conexão marcada como `connected`.

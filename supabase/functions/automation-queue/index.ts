@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "@supabase/supabase-js";
 
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",

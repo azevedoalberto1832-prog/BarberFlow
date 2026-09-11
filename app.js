@@ -43,6 +43,13 @@ async function rest(path,{method="GET",body,prefer="return=representation"}={}) 
   if(!response.ok) throw new Error(data?.message || data?.hint || "Não foi possível salvar a alteração");
   return data;
 }
+async function edge(name,body) {
+  if(!authSession?.access_token) throw new Error("Sessão expirada. Entre novamente.");
+  const response=await fetch(`${SUPABASE_URL}/functions/v1/${name}`,{method:"POST",headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${authSession.access_token}`,"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const data=await response.json().catch(()=>null);
+  if(!response.ok) throw new Error(data?.error||data?.message||"Não foi possível concluir a operação");
+  return data;
+}
 const SERVICES = [
   {
     id: "corte",
@@ -216,6 +223,7 @@ let adminTab = "dashboard";
 let cashTab = "movimentos";
 let agendaDate = addDays(1);
 let currentProfile=null,currentShop=null,currentSubscription=null,adminLoaded=false,platformTenants=[];
+let whatsappConnection=null,automationRules=[],automationRuns=[];
 let crmPipelines=[],crmStages=[],crmOpportunities=[],activePipelineId="";
 const save = () => {};
 let remoteSlots = [], slotProfessionals = {}, slotsLoaded = false;
@@ -436,7 +444,7 @@ async function loadAdminData() {
     adminLoaded=true; return;
   }
   const shops=await rest(`barbershops?select=*&id=eq.${currentProfile.barbershop_id}`); currentShop=shops?.[0];
-  const [services,professionals,clients,appointments,cash,subscriptions,categories,pipelines,stages,opportunities,reminders]=await Promise.all([
+  const [services,professionals,clients,appointments,cash,subscriptions,categories,pipelines,stages,opportunities,reminders,connections,rules,runs]=await Promise.all([
     rest(`services?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
     rest(`professionals?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
     rest(`clients?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
@@ -448,6 +456,9 @@ async function loadAdminData() {
     rest(`crm_stages?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=position`),
     rest(`crm_opportunities?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=updated_at.desc`),
     rest(`reminders?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=scheduled_for`),
+    rest(`whatsapp_connections?select=id,barbershop_id,provider,phone_number_id,business_account_id,status,verified_at,graph_api_version,display_phone_number,verified_name,quality_rating,last_error&barbershop_id=eq.${currentProfile.barbershop_id}`),
+    rest(`automation_rules?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=created_at`),
+    rest(`automation_runs?select=id,rule_id,status,scheduled_for,attempt_count,finished_at,error_message&barbershop_id=eq.${currentProfile.barbershop_id}&order=created_at.desc&limit=25`),
   ]);
   currentSubscription=subscriptions?.[0];
   db.services=(services||[]).map(s=>({id:s.id,name:s.name,desc:s.description,duration:s.duration_minutes,price:Number(s.price),returnDays:s.return_interval_days,active:s.active}));
@@ -460,6 +471,9 @@ async function loadAdminData() {
   crmPipelines=pipelines||[];
   crmStages=stages||[];
   crmOpportunities=(opportunities||[]).map((opportunity)=>({...opportunity,value:opportunity.value===null?null:Number(opportunity.value)}));
+  whatsappConnection=connections?.[0]||null;
+  automationRules=rules||[];
+  automationRuns=runs||[];
   if(!crmPipelines.some((pipeline)=>pipeline.id===activePipelineId)) activePipelineId=crmPipelines.find((pipeline)=>pipeline.active)?.id||crmPipelines[0]?.id||"";
   if(currentShop) db.settings={shop:currentShop.name,address:currentShop.address||"",phone:currentShop.phone||"",open:currentShop.opening_time?.slice(0,5)||"09:00",close:currentShop.closing_time?.slice(0,5)||"19:00",breakStart:currentShop.break_start?.slice(0,5)||"",breakEnd:currentShop.break_end?.slice(0,5)||"",greeting:currentShop.whatsapp_message||"",instagram:currentShop.instagram||"",logo:currentShop.logo_url||"palazzo-logo.jpg"};
   adminLoaded=true;
@@ -651,7 +665,15 @@ function adminContent() {
   if (adminTab === "servicos")
     return `<section class="panel"><div class="toolbar"><span class="muted">Nome, preço, duração e ciclo de retorno</span><button class="btn btn-dark" data-add-service>+ Serviço</button></div><div class="list-cards">${db.services.map((s) => `<div class="list-card"><span><b>${s.name}</b><br><small class="muted">${s.duration} min · ${money(s.price)} · ${s.returnDays?`retorno em ${s.returnDays} dias`:"sem lembrete de retorno"}</small></span><span><button class="btn btn-ghost" data-edit-service="${s.id}">Editar</button><button class="badge ${s.active ? "green" : "red"}" data-toggle-service="${s.id}">${s.active ? "Ativo" : "Inativo"}</button><button class="btn btn-ghost danger" data-delete-service="${s.id}">Excluir</button></span></div>`).join("")}</div></section>`;
   if(adminTab === "crm") return crmContent();
-  if(adminTab === "automacoes") return `<section class="panel"><div class="toolbar"><div><h3 style="margin:0">Central de automações</h3><small class="muted">Regras prontas para n8n e WhatsApp Business Platform.</small></div><span class="badge ${currentSubscription?.plan==="pro"?"green":""}">${currentSubscription?.plan==="pro"?"Plano Pro":"Recurso Pro"}</span></div><div class="list-cards"><div class="list-card"><span><b>Retorno de cliente</b><br><small class="muted">Acionada quando o período sem atendimento for atingido.</small></span><span class="badge">Desativada</span></div><div class="list-card"><span><b>Aniversário</b><br><small class="muted">Mensagem personalizada respeitando o consentimento.</small></span><span class="badge">Desativada</span></div><div class="list-card"><span><b>Lembrete de agendamento</b><br><small class="muted">Confirmação programada antes do horário marcado.</small></span><span class="badge">Próxima etapa</span></div></div><div class="empty">Nenhuma mensagem será enviada até uma conexão oficial do WhatsApp ser configurada.</div></section>`;
+  if(adminTab === "automacoes") {
+    const connected=whatsappConnection?.status==="connected";
+    const queued=automationRuns.filter((run)=>run.status==="queued").length;
+    const sent=automationRuns.filter((run)=>run.status==="sent").length;
+    const failed=automationRuns.filter((run)=>run.status==="failed").length;
+    const ruleCards=automationRules.map((rule)=>`<div class="list-card"><span><b>${esc(rule.name)}</b><br><small class="muted">${esc(rule.trigger_type)} · ${esc(rule.channel)}${rule.conditions?.meta_template_name?` · template ${esc(rule.conditions.meta_template_name)}`:" · template Meta não definido"}</small></span><span class="badge ${rule.active?"green":""}">${rule.active?"Ativa":"Desativada"}</span></div>`).join("")||'<div class="empty">Nenhuma regra cadastrada.</div>';
+    const connectionForm=currentProfile?.role==="owner"?`<form id="whatsapp-connect-form"><div class="form-grid"><label class="field"><span>ID da conta WhatsApp Business</span><input name="businessAccountId" inputmode="numeric" value="${esc(whatsappConnection?.business_account_id||"")}" required></label><label class="field"><span>ID do número de telefone</span><input name="phoneNumberId" inputmode="numeric" value="${esc(whatsappConnection?.phone_number_id||"")}" required></label><label class="field full"><span>Token permanente da Meta</span><input name="accessToken" type="password" autocomplete="off" placeholder="Cole o token para validar e guardar no cofre" required><small class="muted">O token segue direto para a função segura, é criptografado no Supabase Vault e nunca volta para esta página.</small></label></div><div class="modal-actions"><span></span><button class="btn btn-dark" type="submit">${connected?"Revalidar conexão":"Conectar com a Meta"}</button></div></form>`:'<div class="empty">Somente o proprietário pode configurar as credenciais da Meta.</div>';
+    return `<div class="metrics"><div class="metric"><small>Conexão Meta</small><b class="${connected?"":"danger"}">${connected?"Ativa":"Pendente"}</b></div><div class="metric"><small>Na fila</small><b>${queued}</b></div><div class="metric"><small>Enviadas</small><b>${sent}</b></div><div class="metric"><small>Falhas</small><b class="${failed?"danger":""}">${failed}</b></div></div><div class="split"><section class="panel"><div class="toolbar"><div><h3 style="margin:0">WhatsApp oficial</h3><small class="muted">Meta Cloud API ${esc(whatsappConnection?.graph_api_version||"v26.0")}</small></div><span class="badge ${connected?"green":"red"}">${connected?"Conectado":"Desconectado"}</span></div>${connected?`<div class="list-card"><span><b>${esc(whatsappConnection.verified_name||db.settings.shop)}</b><br><small class="muted">${esc(whatsappConnection.display_phone_number||whatsappConnection.phone_number_id)}${whatsappConnection.quality_rating?` · qualidade ${esc(whatsappConnection.quality_rating)}`:""}</small></span><span class="badge green">Verificado</span></div>`:""}${connectionForm}</section><section class="panel"><div class="toolbar"><div><h3 style="margin:0">Regras de automação</h3><small class="muted">Fila segura do n8n com templates aprovados.</small></div><span class="badge ${currentSubscription?.plan==="pro"?"green":""}">${currentSubscription?.plan==="pro"?"Plano Pro":"Recurso Pro"}</span></div><div class="list-cards">${ruleCards}</div><div class="empty">${connected?"Conexão validada. O envio só é liberado para regras ativas com template aprovado na Meta e cliente com consentimento.":"Nenhuma mensagem será enviada até a conexão oficial ser validada."}</div></section></div>`;
+  }
   if(adminTab === "profissionais") return `<section class="panel"><div class="toolbar"><span class="muted">Equipe e disponibilidade para agendamentos</span><button class="btn btn-dark" data-add-professional>+ Profissional</button></div><div class="list-cards">${PEOPLE.map(p=>`<div class="list-card"><span><b>${p.name}</b><br><small class="muted">${p.phone||"Sem telefone"}</small></span><span><button class="btn btn-ghost" data-edit-professional="${p.id}">Editar</button><button class="badge ${p.active?"green":"red"}" data-toggle-professional="${p.id}">${p.active?"Ativo":"Inativo"}</button></span></div>`).join("")||'<div class="empty">Nenhum profissional cadastrado.</div>'}</div></section>`;
   return `<section class="panel"><div class="form-grid"><label class="field"><span>Nome da empresa</span><input id="set-shop" value="${db.settings.shop}"></label><label class="field"><span>WhatsApp</span><input id="set-phone" value="${db.settings.phone}"></label><label class="field full"><span>Endereço</span><input id="set-address" value="${db.settings.address}"></label><label class="field"><span>Abertura</span><input id="set-open" type="time" value="${db.settings.open}"></label><label class="field"><span>Fechamento</span><input id="set-close" type="time" value="${db.settings.close}"></label><label class="field"><span>Início do intervalo</span><input id="set-break-start" type="time" value="${db.settings.breakStart}"></label><label class="field"><span>Fim do intervalo</span><input id="set-break-end" type="time" value="${db.settings.breakEnd}"></label><label class="field full"><span>Saudação do WhatsApp</span><textarea id="set-greeting" rows="4">${db.settings.greeting}</textarea></label></div><div class="modal-actions"><button class="btn btn-dark" data-save-settings>Salvar configurações</button></div></section>`;
 }
@@ -728,6 +750,16 @@ function bind() {
   document.querySelectorAll("[data-move-opportunity]").forEach((select)=>select.addEventListener("change",()=>updateOpportunity(select.dataset.moveOpportunity,{stage_id:select.value},"Oportunidade movida")));
   document.querySelectorAll("[data-opportunity-status]").forEach((button)=>button.addEventListener("click",()=>updateOpportunity(button.dataset.opportunityId,{status:button.dataset.opportunityStatus},button.dataset.opportunityStatus==="won"?"Oportunidade ganha":button.dataset.opportunityStatus==="lost"?"Oportunidade perdida":"Oportunidade reaberta")));
   document.querySelectorAll("[data-delete-opportunity]").forEach((button)=>button.addEventListener("click",()=>confirmAdmin("A oportunidade será excluída definitivamente.",()=>rest(`crm_opportunities?id=eq.${button.dataset.deleteOpportunity}`,{method:"DELETE"}))));
+  document.querySelector("#whatsapp-connect-form")?.addEventListener("submit",async(event)=>{
+    event.preventDefault();
+    const button=event.currentTarget.querySelector("button[type=submit]");
+    button.disabled=true;
+    const form=new FormData(event.currentTarget);
+    try{
+      await edge("whatsapp-connection",{barbershopId:currentProfile.barbershop_id,businessAccountId:String(form.get("businessAccountId")||"").trim(),phoneNumberId:String(form.get("phoneNumberId")||"").trim(),accessToken:String(form.get("accessToken")||"").trim()});
+      await loadAdminData();render();toast("WhatsApp oficial conectado com segurança");
+    }catch(error){toast(error.message);button.disabled=false;}
+  });
   document.querySelectorAll("[data-confirm-appt]").forEach(x=>x.onclick=async()=>{try{await rest(`appointments?id=eq.${x.dataset.confirmAppt}`,{method:"PATCH",body:{status:"confirmed",updated_at:new Date().toISOString()}});await loadAdminData();render();toast("Agendamento confirmado");}catch(error){toast(error.message);}});
   document.querySelectorAll("[data-complete-appt]").forEach(x=>x.onclick=()=>openPaymentForm(db.appointments.find(a=>a.id===x.dataset.completeAppt)));
   document.querySelectorAll("[data-noshow-appt]").forEach(x=>x.onclick=()=>confirmAdmin("O agendamento será marcado como falta e o horário será encerrado.",()=>rest(`appointments?id=eq.${x.dataset.noshowAppt}`,{method:"PATCH",body:{status:"no_show",updated_at:new Date().toISOString()}})));

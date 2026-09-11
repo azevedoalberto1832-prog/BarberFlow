@@ -18,7 +18,8 @@ evento Chrona → regra do tenant → execução deduplicada → consentimento e
 ## Segurança
 
 - Todas as entidades comerciais usam `barbershop_id` e RLS.
-- Tokens da Meta e segredos do n8n não ficam no navegador; o banco guarda somente referências ao cofre de segredos.
+- Tokens da Meta são validados por uma Edge Function e criptografados no Supabase Vault; a tabela operacional guarda somente a referência do segredo.
+- O token pode ser informado pelo proprietário em um formulário autenticado, mas não é persistido nem devolvido ao navegador.
 - Históricos de execução, mensagens e webhooks são somente leitura para o tenant.
 - `deduplication_key` impede mensagens repetidas em reprocessamentos.
 - `whatsapp_opt_in` e opt-out devem ser verificados antes de cada envio.
@@ -27,9 +28,8 @@ evento Chrona → regra do tenant → execução deduplicada → consentimento e
 
 ## Próximas implementações
 
-O CRUD de pipelines, etapas e oportunidades já está disponível no painel administrativo, com próximas ações, valor estimado e estados de ganho ou perda. Cada serviço também possui um período próprio de retorno, com padrão de 30 dias; ao concluir o atendimento, a menor janela configurada entre os serviços realizados agenda o próximo contato do cliente. O endpoint autenticado da fila já está pronto para o n8n reservar e finalizar execuções.
+O CRUD de pipelines, etapas e oportunidades já está disponível no painel administrativo, com próximas ações, valor estimado e estados de ganho ou perda. Cada serviço também possui um período próprio de retorno, com padrão de 30 dias; ao concluir o atendimento, a menor janela configurada entre os serviços realizados agenda o próximo contato do cliente. O n8n já pode reservar execuções e solicitar o envio de templates pela Meta Cloud API sem receber o token do tenant.
 
-1. Cofre de segredos e Meta Cloud API.
-2. Webhook assinado para entrega e leitura.
-3. Opt-out, janela de 24 horas e templates aprovados.
-4. Métricas de conversão e reativação.
+1. Webhook assinado para entrega e leitura.
+2. Opt-out, janela de 24 horas e gestão de templates aprovados.
+3. Métricas de conversão e reativação.

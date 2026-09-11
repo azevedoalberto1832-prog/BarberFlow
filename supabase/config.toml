@@ -2,3 +2,9 @@ project_id = "qcjjqdkjfvnbslbpnrgk"
 
 [functions.automation-queue]
 verify_jwt = false
+
+[functions.whatsapp-connection]
+verify_jwt = true
+
+[functions.whatsapp-send]
+verify_jwt = false
