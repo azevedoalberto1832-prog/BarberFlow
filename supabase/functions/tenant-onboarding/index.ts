@@ -144,6 +144,50 @@ Deno.serve(async (request: Request) => {
     return json(request, { error: "Slug inválido" }, 400);
   }
 
+  if (action === "create") {
+    const tenantName = stringValue(body.name);
+    const phone = stringValue(body.phone).replace(/\D/g, "");
+    const primaryColor = stringValue(body.primaryColor).toLowerCase();
+    const secondaryColor = stringValue(body.secondaryColor).toLowerCase();
+    const plan = stringValue(body.plan);
+    const logoUrl = stringValue(body.logoUrl);
+    if (tenantName.length < 2 || tenantName.length > 120) {
+      return json(request, { error: "Informe um nome de empresa válido" }, 400);
+    }
+    if (tenantSlug.length > 80) {
+      return json(request, { error: "O link da empresa é muito longo" }, 400);
+    }
+    if (!/^[0-9]{10,15}$/.test(phone)) {
+      return json(request, { error: "Informe um WhatsApp válido com DDD" }, 400);
+    }
+    if (!/^#[0-9a-f]{6}$/.test(primaryColor) || !/^#[0-9a-f]{6}$/.test(secondaryColor)) {
+      return json(request, { error: "As cores da identidade visual são inválidas" }, 400);
+    }
+    if (!new Set(["essential", "pro"]).has(plan)) {
+      return json(request, { error: "Plano inválido" }, 400);
+    }
+    if (logoUrl && !/^https:\/\/\S+$/i.test(logoUrl)) {
+      return json(request, { error: "A logo deve usar um link HTTPS" }, 400);
+    }
+    const { data: existingShop, error: existingShopError } = await adminClient
+      .from("barbershops")
+      .select("id")
+      .eq("slug", tenantSlug)
+      .maybeSingle();
+    if (existingShopError) return json(request, { error: "Não foi possível validar o link da empresa" }, 500);
+    if (existingShop) return json(request, { error: "Este slug já está em uso" }, 409);
+  } else {
+    const { data: existingOwner, error: existingOwnerError } = await adminClient
+      .from("profiles")
+      .select("id")
+      .eq("barbershop_id", targetBarbershopId)
+      .eq("role", "owner")
+      .eq("active", true)
+      .maybeSingle();
+    if (existingOwnerError) return json(request, { error: "Não foi possível validar o acesso da empresa" }, 500);
+    if (existingOwner) return json(request, { error: "Esta empresa já possui um responsável ativo" }, 409);
+  }
+
   const redirectTo = `${CHRONA_SITE_URL}?tenant=${encodeURIComponent(tenantSlug)}`;
   const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
     ownerEmail,
