@@ -216,11 +216,15 @@ let adminTab = "dashboard";
 let cashTab = "movimentos";
 let agendaDate = addDays(1);
 let currentProfile=null,currentShop=null,currentSubscription=null,adminLoaded=false,platformTenants=[];
+let crmPipelines=[],crmStages=[],crmOpportunities=[],activePipelineId="";
 const save = () => {};
 let remoteSlots = [], slotProfessionals = {}, slotsLoaded = false;
 const money = (v) =>
-  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  Number(v||0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const dateBR = (d) => d ? new Date(d + "T12:00").toLocaleDateString("pt-BR") : "—";
+const dateTimeBR = (d) => d ? new Date(d).toLocaleString("pt-BR", { dateStyle:"short", timeStyle:"short" }) : "Sem próxima ação";
+const dateTimeLocal = (d) => d ? new Date(new Date(d).getTime()-new Date(d).getTimezoneOffset()*60000).toISOString().slice(0,16) : "";
+const esc = (value) => String(value??"").replace(/[&<>"']/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"})[char]);
 const service = (id) => db.services.find((s) => s.id === id);
 const total = () =>
   booking.serviceIds.reduce(
@@ -302,6 +306,59 @@ function openAdminForm(kind, id = "") {
     } catch(error){toast(error.message);submit.disabled=false;}
   };
 }
+function currentPipeline(){
+  return crmPipelines.find((pipeline)=>pipeline.id===activePipelineId)||crmPipelines.find((pipeline)=>pipeline.active)||crmPipelines[0];
+}
+function openCrmForm(kind,id="",defaultStageId=""){
+  document.querySelector("#crm-form-modal")?.remove();
+  const pipeline=currentPipeline();
+  let title="",fields="",item;
+  if(kind==="opportunity"){
+    item=crmOpportunities.find((opportunity)=>opportunity.id===id)||{client_id:db.clients[0]?.id||"",stage_id:defaultStageId||crmStages.find((stage)=>stage.pipeline_id===pipeline?.id)?.id||"",title:"",source:"manual",value:"",next_action_at:"",status:"open",notes:""};
+    title=id?"Editar oportunidade":"Nova oportunidade";
+    const pipelineStages=crmStages.filter((stage)=>stage.pipeline_id===pipeline?.id).sort((a,b)=>a.position-b.position);
+    fields=`<label class="field"><span>Cliente *</span><select name="client_id" required><option value="">Selecione</option>${db.clients.map((client)=>`<option value="${client.id}" ${client.id===item.client_id?"selected":""}>${esc(client.name)} · ${esc(client.phone)}</option>`).join("")}</select></label><label class="field"><span>Etapa *</span><select name="stage_id" required>${pipelineStages.map((stage)=>`<option value="${stage.id}" ${stage.id===item.stage_id?"selected":""}>${esc(stage.name)}</option>`).join("")}</select></label><label class="field full"><span>Título *</span><input name="title" value="${esc(item.title)}" placeholder="Ex.: Retorno para corte e barba" required></label><label class="field"><span>Valor estimado</span><input name="value" type="number" min="0" step="0.01" value="${item.value??""}"></label><label class="field"><span>Próxima ação</span><input name="next_action_at" type="datetime-local" value="${dateTimeLocal(item.next_action_at)}"></label><label class="field"><span>Origem</span><select name="source">${[["manual","Manual"],["whatsapp","WhatsApp"],["instagram","Instagram"],["referral","Indicação"],["appointment","Agendamento"]].map(([value,label])=>`<option value="${value}" ${value===item.source?"selected":""}>${label}</option>`).join("")}</select></label><label class="field"><span>Status</span><select name="status">${[["open","Em aberto"],["won","Ganha"],["lost","Perdida"],["archived","Arquivada"]].map(([value,label])=>`<option value="${value}" ${value===item.status?"selected":""}>${label}</option>`).join("")}</select></label><label class="field full"><span>Observações</span><textarea name="notes" rows="4">${esc(item.notes)}</textarea></label>`;
+  }else if(kind==="pipeline"){
+    item=crmPipelines.find((pipeline)=>pipeline.id===id)||{name:""};
+    title=id?"Editar pipeline":"Novo pipeline";
+    fields=`<label class="field full"><span>Nome *</span><input name="name" value="${esc(item.name)}" placeholder="Ex.: Relacionamento" required></label>${id?"":'<p class="muted field full">O novo pipeline começa com quatro etapas que você pode personalizar.</p>'}`;
+  }else{
+    item=crmStages.find((stage)=>stage.id===id)||{name:"",color:"#9caeff",position:crmStages.filter((stage)=>stage.pipeline_id===pipeline?.id).length+1};
+    title=id?"Editar etapa":"Nova etapa";
+    fields=`<label class="field"><span>Nome *</span><input name="name" value="${esc(item.name)}" required></label><label class="field"><span>Cor</span><input name="color" type="color" value="${item.color||"#9caeff"}"></label><label class="field"><span>Posição</span><input name="position" type="number" min="1" max="99" value="${item.position}" required></label>`;
+  }
+  document.body.insertAdjacentHTML("beforeend",`<div class="modal" id="crm-form-modal"><div class="modal-card" style="max-width:680px"><div class="modal-head"><div><div class="eyebrow">CRM CHRONA</div><h3 style="font-size:27px">${title}</h3></div><button type="button" class="btn btn-ghost" data-crm-close>✕</button></div><form class="modal-body" id="crm-form"><div class="form-grid">${fields}</div><div class="modal-actions"><button type="button" class="btn btn-outline" data-crm-close>Cancelar</button><button class="btn btn-dark" type="submit">Salvar</button></div></form></div></div>`);
+  document.querySelectorAll("[data-crm-close]").forEach((button)=>button.onclick=()=>document.querySelector("#crm-form-modal")?.remove());
+  document.querySelector("#crm-form").onsubmit=async(event)=>{
+    event.preventDefault();
+    const button=event.currentTarget.querySelector('button[type="submit"]');button.disabled=true;
+    const values=Object.fromEntries(new FormData(event.currentTarget).entries());
+    try{
+      if(kind==="opportunity"){
+        const body={barbershop_id:currentProfile.barbershop_id,client_id:values.client_id,stage_id:values.stage_id,title:values.title.trim(),source:values.source,value:values.value===""?null:Number(values.value),next_action_at:values.next_action_at?new Date(values.next_action_at).toISOString():null,status:values.status,notes:values.notes.trim()||null,updated_at:new Date().toISOString()};
+        await rest(id?`crm_opportunities?id=eq.${id}`:"crm_opportunities",{method:id?"PATCH":"POST",body});
+      }else if(kind==="pipeline"){
+        if(id) await rest(`crm_pipelines?id=eq.${id}`,{method:"PATCH",body:{name:values.name.trim()}});
+        else{
+          const created=await rest("crm_pipelines",{method:"POST",body:{barbershop_id:currentProfile.barbershop_id,name:values.name.trim(),active:true}});
+          const newPipeline=created?.[0];
+          if(newPipeline){
+            activePipelineId=newPipeline.id;
+            await rest("crm_stages",{method:"POST",body:[["Novo contato","#9caeff"],["Agendamento pendente","#d8b7bd"],["Cliente ativo","#72b88d"],["Reativação","#e5a76f"]].map(([name,color],index)=>({barbershop_id:currentProfile.barbershop_id,pipeline_id:newPipeline.id,name,position:index+1,color}))});
+          }
+        }
+      }else{
+        const body={barbershop_id:currentProfile.barbershop_id,pipeline_id:pipeline.id,name:values.name.trim(),position:Number(values.position),color:values.color};
+        await rest(id?`crm_stages?id=eq.${id}`:"crm_stages",{method:id?"PATCH":"POST",body});
+      }
+      await loadAdminData();document.querySelector("#crm-form-modal")?.remove();render();toast("CRM atualizado");
+    }catch(error){toast(error.message);button.disabled=false;}
+  };
+}
+async function updateOpportunity(id,body,message){
+  try{await rest(`crm_opportunities?id=eq.${id}`,{method:"PATCH",body:{...body,updated_at:new Date().toISOString()}});await loadAdminData();render();toast(message);}
+  catch(error){toast(error.message);}
+}
 function confirmAdmin(message, action) {
   document.querySelector("#admin-confirm")?.remove();
   document.body.insertAdjacentHTML(
@@ -378,7 +435,7 @@ async function loadAdminData() {
     adminLoaded=true; return;
   }
   const shops=await rest(`barbershops?select=*&id=eq.${currentProfile.barbershop_id}`); currentShop=shops?.[0];
-  const [services,professionals,clients,appointments,cash,subscriptions,categories]=await Promise.all([
+  const [services,professionals,clients,appointments,cash,subscriptions,categories,pipelines,stages,opportunities]=await Promise.all([
     rest(`services?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
     rest(`professionals?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
     rest(`clients?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
@@ -386,6 +443,9 @@ async function loadAdminData() {
     rest(`cash_transactions?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=transaction_date.desc,created_at.desc`),
     rest(`subscriptions?select=*&barbershop_id=eq.${currentProfile.barbershop_id}`),
     rest(`cash_categories?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
+    rest(`crm_pipelines?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=created_at`),
+    rest(`crm_stages?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=position`),
+    rest(`crm_opportunities?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=updated_at.desc`),
   ]);
   currentSubscription=subscriptions?.[0];
   db.services=(services||[]).map(s=>({id:s.id,name:s.name,desc:s.description,duration:s.duration_minutes,price:Number(s.price),active:s.active}));
@@ -394,6 +454,10 @@ async function loadAdminData() {
   db.appointments=Array.isArray(appointments)?appointments:[];
   db.cash=(cash||[]).map(x=>({id:x.id,appointmentId:x.appointment_id,type:x.type==="income"?"entrada":"saida",desc:x.description,value:Number(x.amount),category:x.category,date:x.transaction_date,method:x.payment_method||""}));
   db.categories=(categories||[]).map(c=>c.name);
+  crmPipelines=pipelines||[];
+  crmStages=stages||[];
+  crmOpportunities=(opportunities||[]).map((opportunity)=>({...opportunity,value:opportunity.value===null?null:Number(opportunity.value)}));
+  if(!crmPipelines.some((pipeline)=>pipeline.id===activePipelineId)) activePipelineId=crmPipelines.find((pipeline)=>pipeline.active)?.id||crmPipelines[0]?.id||"";
   if(currentShop) db.settings={shop:currentShop.name,address:currentShop.address||"",phone:currentShop.phone||"",open:currentShop.opening_time?.slice(0,5)||"09:00",close:currentShop.closing_time?.slice(0,5)||"19:00",breakStart:currentShop.break_start?.slice(0,5)||"",breakEnd:currentShop.break_end?.slice(0,5)||"",greeting:currentShop.whatsapp_message||"",instagram:currentShop.instagram||"",logo:currentShop.logo_url||"palazzo-logo.jpg"};
   adminLoaded=true;
 }
@@ -492,6 +556,27 @@ function adminPage() {
   const logo=db.settings.logo?`<img class="brand-logo" src="${db.settings.logo}" alt="Logo ${db.settings.shop}">`:`<span class="brand-logo" style="display:grid;place-items:center;font-weight:800">N</span>`;
   return `<div class="admin"><div class="admin-shell"><aside class="sidebar"><div class="brand">${logo}<div>${db.settings.shop}<small>GESTÃO CHRONA</small></div></div><nav class="nav">${nav.map((n) => `<button class="${adminTab === n[0] ? "active" : ""}" data-tab="${n[0]}">${n[1]}</button>`).join("")}<button data-public>↗ Página pública</button><button data-logout>Sair</button></nav></aside><main class="admin-main"><header class="admin-header"><div><div class="eyebrow">${db.settings.shop} · CHRONA</div><h1>${nav.find((n) => n[0] === adminTab)[1]}</h1></div><button class="btn btn-dark" data-quick>+ Novo</button></header>${adminContent()}</main></div><nav class="mobile-nav">${nav.map((n) => `<button class="${adminTab === n[0] ? "active" : ""}" data-tab="${n[0]}">${n[1]}</button>`).join("")}</nav></div>`;
 }
+function crmContent(){
+  const pipeline=currentPipeline();
+  if(!pipeline) return `<section class="panel"><div class="empty"><h3>Crie seu primeiro pipeline</h3><p>Organize contatos, agendamentos e ações de relacionamento.</p><button class="btn btn-dark" data-add-pipeline>+ Criar pipeline</button></div></section>`;
+  const stages=crmStages.filter((stage)=>stage.pipeline_id===pipeline.id).sort((a,b)=>a.position-b.position);
+  const stageIds=new Set(stages.map((stage)=>stage.id));
+  const opportunities=crmOpportunities.filter((opportunity)=>stageIds.has(opportunity.stage_id)&&opportunity.status!=="archived");
+  const open=opportunities.filter((opportunity)=>opportunity.status==="open");
+  const won=opportunities.filter((opportunity)=>opportunity.status==="won");
+  const overdue=open.filter((opportunity)=>opportunity.next_action_at&&new Date(opportunity.next_action_at)<new Date());
+  const sourceLabels={manual:"Manual",whatsapp:"WhatsApp",instagram:"Instagram",referral:"Indicação",appointment:"Agendamento"};
+  const statusLabels={open:"Em aberto",won:"Ganha",lost:"Perdida"};
+  const board=stages.map((stage)=>{
+    const cards=opportunities.filter((opportunity)=>opportunity.stage_id===stage.id);
+    return `<section class="crm-column" style="--stage-color:${stage.color||"#9caeff"}"><header class="crm-column-head"><div><span class="crm-stage-dot"></span><b>${esc(stage.name)}</b><small>${cards.length}</small></div><div><button class="btn btn-ghost" title="Editar etapa" data-edit-stage="${stage.id}">Editar</button><button class="btn btn-ghost danger" title="Excluir etapa" data-delete-stage="${stage.id}">×</button><button class="btn btn-ghost" title="Nova oportunidade nesta etapa" data-add-opportunity="${stage.id}">+</button></div></header><div class="crm-cards">${cards.map((opportunity)=>{
+      const client=db.clients.find((item)=>item.id===opportunity.client_id);
+      const isOverdue=opportunity.status==="open"&&opportunity.next_action_at&&new Date(opportunity.next_action_at)<new Date();
+      return `<article class="crm-card ${opportunity.status}"><button class="crm-card-main" data-edit-opportunity="${opportunity.id}"><span class="badge ${opportunity.status==="won"?"green":opportunity.status==="lost"?"red":""}">${statusLabels[opportunity.status]||opportunity.status}</span><h4>${esc(opportunity.title)}</h4><p>${esc(client?.name||"Cliente removido")}</p>${opportunity.value!==null?`<b class="crm-value">${money(opportunity.value)}</b>`:""}<small class="${isOverdue?"danger":"muted"}">${isOverdue?"Ação atrasada · ":""}${dateTimeBR(opportunity.next_action_at)}</small><small class="muted">Origem: ${sourceLabels[opportunity.source]||esc(opportunity.source)}</small></button><div class="crm-card-actions"><select data-move-opportunity="${opportunity.id}" aria-label="Mover oportunidade">${stages.map((target)=>`<option value="${target.id}" ${target.id===opportunity.stage_id?"selected":""}>${esc(target.name)}</option>`).join("")}</select>${opportunity.status!=="won"?`<button class="btn btn-ghost" data-opportunity-status="won" data-opportunity-id="${opportunity.id}">Ganhar</button>`:`<button class="btn btn-ghost" data-opportunity-status="open" data-opportunity-id="${opportunity.id}">Reabrir</button>`}${opportunity.status!=="lost"?`<button class="btn btn-ghost danger" data-opportunity-status="lost" data-opportunity-id="${opportunity.id}">Perder</button>`:""}${client?.phone?`<button class="btn btn-ghost" data-whatsapp="${esc(client.phone)}">WhatsApp</button>`:""}<button class="btn btn-ghost danger" data-delete-opportunity="${opportunity.id}">Excluir</button></div></article>`;
+    }).join("")||'<div class="crm-empty">Nenhuma oportunidade<br><button class="btn btn-ghost" data-add-opportunity="'+stage.id+'">Adicionar</button></div>'}</div></section>`;
+  }).join("");
+  return `<div class="metrics"><div class="metric"><small>Em aberto</small><b>${open.length}</b></div><div class="metric"><small>Previsão</small><b>${money(open.reduce((sum,item)=>sum+(item.value||0),0))}</b></div><div class="metric"><small>Ganhas</small><b>${won.length}</b></div><div class="metric"><small>Ações atrasadas</small><b class="${overdue.length?"danger":""}">${overdue.length}</b></div></div><section class="panel crm-panel"><div class="toolbar"><div><h3 style="margin:0">Pipeline de relacionamento</h3><small class="muted">Acompanhe cada cliente até a próxima ação.</small></div><div class="crm-toolbar"><select id="crm-pipeline">${crmPipelines.map((item)=>`<option value="${item.id}" ${item.id===pipeline.id?"selected":""}>${esc(item.name)}${item.active?"":" · arquivado"}</option>`).join("")}</select><button class="btn btn-outline" data-edit-pipeline="${pipeline.id}">Editar</button><button class="btn btn-outline" data-toggle-pipeline="${pipeline.id}">${pipeline.active?"Arquivar":"Ativar"}</button><button class="btn btn-ghost danger" data-delete-pipeline="${pipeline.id}">Excluir</button><button class="btn btn-outline" data-add-stage>+ Etapa</button><button class="btn btn-dark" data-add-opportunity>+ Oportunidade</button><button class="btn btn-ghost" data-add-pipeline>+ Pipeline</button></div></div>${stages.length?`<div class="crm-board">${board}</div>`:'<div class="empty">Este pipeline ainda não tem etapas.<br><button class="btn btn-outline" data-add-stage>Adicionar primeira etapa</button></div>'}</section>`;
+}
 function adminContent() {
   let revenue = db.cash
       .filter((x) => x.type === "entrada")
@@ -559,7 +644,7 @@ function adminContent() {
   }
   if (adminTab === "servicos")
     return `<section class="panel"><div class="toolbar"><span class="muted">Nome, preço, duração e disponibilidade</span><button class="btn btn-dark" data-add-service>+ Serviço</button></div><div class="list-cards">${db.services.map((s) => `<div class="list-card"><span><b>${s.name}</b><br><small class="muted">${s.duration} min · ${money(s.price)}</small></span><span><button class="btn btn-ghost" data-edit-service="${s.id}">Editar</button><button class="badge ${s.active ? "green" : "red"}" data-toggle-service="${s.id}">${s.active ? "Ativo" : "Inativo"}</button><button class="btn btn-ghost danger" data-delete-service="${s.id}">Excluir</button></span></div>`).join("")}</div></section>`;
-  if(adminTab === "crm") return `<div class="metrics"><div class="metric"><small>Novos contatos</small><b>0</b></div><div class="metric"><small>Agendamento pendente</small><b>0</b></div><div class="metric"><small>Clientes ativos</small><b>${db.clients.length}</b></div><div class="metric"><small>Reativação</small><b>${db.clients.filter(c=>c.lastVisit&&Math.floor((new Date()-new Date(c.lastVisit+"T12:00"))/86400000)>=20).length}</b></div></div><section class="panel"><div class="toolbar"><div><h3 style="margin:0">Pipeline de relacionamento</h3><small class="muted">Estrutura preparada para oportunidades, etapas e próximas ações.</small></div><span class="badge">Módulo em preparação</span></div><div class="choice-grid"><div class="choice"><b>Novo contato</b><p class="muted">Leads captados e cadastros recentes.</p></div><div class="choice"><b>Agendamento pendente</b><p class="muted">Clientes em processo de marcação.</p></div><div class="choice"><b>Cliente ativo</b><p class="muted">Relacionamentos com atendimento recente.</p></div><div class="choice"><b>Reativação</b><p class="muted">Oportunidades de retorno por período.</p></div></div></section>`;
+  if(adminTab === "crm") return crmContent();
   if(adminTab === "automacoes") return `<section class="panel"><div class="toolbar"><div><h3 style="margin:0">Central de automações</h3><small class="muted">Regras prontas para n8n e WhatsApp Business Platform.</small></div><span class="badge ${currentSubscription?.plan==="pro"?"green":""}">${currentSubscription?.plan==="pro"?"Plano Pro":"Recurso Pro"}</span></div><div class="list-cards"><div class="list-card"><span><b>Retorno de cliente</b><br><small class="muted">Acionada quando o período sem atendimento for atingido.</small></span><span class="badge">Desativada</span></div><div class="list-card"><span><b>Aniversário</b><br><small class="muted">Mensagem personalizada respeitando o consentimento.</small></span><span class="badge">Desativada</span></div><div class="list-card"><span><b>Lembrete de agendamento</b><br><small class="muted">Confirmação programada antes do horário marcado.</small></span><span class="badge">Próxima etapa</span></div></div><div class="empty">Nenhuma mensagem será enviada até uma conexão oficial do WhatsApp ser configurada.</div></section>`;
   if(adminTab === "profissionais") return `<section class="panel"><div class="toolbar"><span class="muted">Equipe e disponibilidade para agendamentos</span><button class="btn btn-dark" data-add-professional>+ Profissional</button></div><div class="list-cards">${PEOPLE.map(p=>`<div class="list-card"><span><b>${p.name}</b><br><small class="muted">${p.phone||"Sem telefone"}</small></span><span><button class="btn btn-ghost" data-edit-professional="${p.id}">Editar</button><button class="badge ${p.active?"green":"red"}" data-toggle-professional="${p.id}">${p.active?"Ativo":"Inativo"}</button></span></div>`).join("")||'<div class="empty">Nenhum profissional cadastrado.</div>'}</div></section>`;
   return `<section class="panel"><div class="form-grid"><label class="field"><span>Nome da empresa</span><input id="set-shop" value="${db.settings.shop}"></label><label class="field"><span>WhatsApp</span><input id="set-phone" value="${db.settings.phone}"></label><label class="field full"><span>Endereço</span><input id="set-address" value="${db.settings.address}"></label><label class="field"><span>Abertura</span><input id="set-open" type="time" value="${db.settings.open}"></label><label class="field"><span>Fechamento</span><input id="set-close" type="time" value="${db.settings.close}"></label><label class="field"><span>Início do intervalo</span><input id="set-break-start" type="time" value="${db.settings.breakStart}"></label><label class="field"><span>Fim do intervalo</span><input id="set-break-end" type="time" value="${db.settings.breakEnd}"></label><label class="field full"><span>Saudação do WhatsApp</span><textarea id="set-greeting" rows="4">${db.settings.greeting}</textarea></label></div><div class="modal-actions"><button class="btn btn-dark" data-save-settings>Salvar configurações</button></div></section>`;
@@ -614,6 +699,26 @@ function bind() {
         render();
       }),
   );
+  document.querySelector("#crm-pipeline")?.addEventListener("change",(event)=>{activePipelineId=event.target.value;render();});
+  document.querySelectorAll("[data-add-pipeline]").forEach((button)=>button.addEventListener("click",()=>openCrmForm("pipeline")));
+  document.querySelectorAll("[data-edit-pipeline]").forEach((button)=>button.addEventListener("click",()=>openCrmForm("pipeline",button.dataset.editPipeline)));
+  document.querySelectorAll("[data-toggle-pipeline]").forEach((button)=>button.addEventListener("click",async()=>{
+    const pipeline=crmPipelines.find((item)=>item.id===button.dataset.togglePipeline);
+    try{await rest(`crm_pipelines?id=eq.${pipeline.id}`,{method:"PATCH",body:{active:!pipeline.active}});await loadAdminData();render();toast(pipeline.active?"Pipeline arquivado":"Pipeline ativado");}catch(error){toast(error.message);}
+  }));
+  document.querySelectorAll("[data-delete-pipeline]").forEach((button)=>button.addEventListener("click",()=>confirmAdmin("O pipeline e suas etapas serão excluídos. Se houver oportunidades vinculadas, a exclusão será bloqueada.",()=>rest(`crm_pipelines?id=eq.${button.dataset.deletePipeline}`,{method:"DELETE"}))));
+  document.querySelectorAll("[data-add-stage]").forEach((button)=>button.addEventListener("click",()=>openCrmForm("stage")));
+  document.querySelectorAll("[data-edit-stage]").forEach((button)=>button.addEventListener("click",()=>openCrmForm("stage",button.dataset.editStage)));
+  document.querySelectorAll("[data-delete-stage]").forEach((button)=>button.addEventListener("click",()=>confirmAdmin("A etapa será excluída somente se não possuir oportunidades.",()=>rest(`crm_stages?id=eq.${button.dataset.deleteStage}`,{method:"DELETE"}))));
+  document.querySelectorAll("[data-add-opportunity]").forEach((button)=>button.addEventListener("click",()=>{
+    if(!db.clients.length) return toast("Cadastre um cliente antes da oportunidade");
+    if(!crmStages.some((stage)=>stage.pipeline_id===currentPipeline()?.id)) return toast("Adicione uma etapa primeiro");
+    openCrmForm("opportunity","",button.dataset.addOpportunity||"");
+  }));
+  document.querySelectorAll("[data-edit-opportunity]").forEach((button)=>button.addEventListener("click",()=>openCrmForm("opportunity",button.dataset.editOpportunity)));
+  document.querySelectorAll("[data-move-opportunity]").forEach((select)=>select.addEventListener("change",()=>updateOpportunity(select.dataset.moveOpportunity,{stage_id:select.value},"Oportunidade movida")));
+  document.querySelectorAll("[data-opportunity-status]").forEach((button)=>button.addEventListener("click",()=>updateOpportunity(button.dataset.opportunityId,{status:button.dataset.opportunityStatus},button.dataset.opportunityStatus==="won"?"Oportunidade ganha":button.dataset.opportunityStatus==="lost"?"Oportunidade perdida":"Oportunidade reaberta")));
+  document.querySelectorAll("[data-delete-opportunity]").forEach((button)=>button.addEventListener("click",()=>confirmAdmin("A oportunidade será excluída definitivamente.",()=>rest(`crm_opportunities?id=eq.${button.dataset.deleteOpportunity}`,{method:"DELETE"}))));
   document.querySelectorAll("[data-confirm-appt]").forEach(x=>x.onclick=async()=>{try{await rest(`appointments?id=eq.${x.dataset.confirmAppt}`,{method:"PATCH",body:{status:"confirmed",updated_at:new Date().toISOString()}});await loadAdminData();render();toast("Agendamento confirmado");}catch(error){toast(error.message);}});
   document.querySelectorAll("[data-complete-appt]").forEach(x=>x.onclick=()=>openPaymentForm(db.appointments.find(a=>a.id===x.dataset.completeAppt)));
   document.querySelectorAll("[data-noshow-appt]").forEach(x=>x.onclick=()=>confirmAdmin("O agendamento será marcado como falta e o horário será encerrado.",()=>rest(`appointments?id=eq.${x.dataset.noshowAppt}`,{method:"PATCH",body:{status:"no_show",updated_at:new Date().toISOString()}})));
@@ -742,6 +847,7 @@ function bind() {
       caixa: "[data-add-cash]",
       servicos: "[data-add-service]",
       profissionais: "[data-add-professional]",
+      crm: "[data-add-opportunity]",
     };
     if (targets[adminTab]) document.querySelector(targets[adminTab])?.click();
     else if (adminTab === "dashboard") {

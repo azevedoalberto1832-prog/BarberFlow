@@ -716,6 +716,117 @@ body[data-tenant="chrona"] {
 .chrona-site .service-card,.chrona-site .hero-card { background:#11172a;border-color:#26304b; }
 .chrona-site .brand-logo { background:linear-gradient(145deg,#748ffc,#4c63d2);color:#fff; }
 .chrona-site .btn-dark { color:#fff; }
+.crm-panel {
+  padding: 18px;
+  overflow: hidden;
+}
+.crm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.crm-toolbar select,
+.crm-card-actions select {
+  border: 1px solid var(--line);
+  background: #111;
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 9px 11px;
+}
+.crm-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(275px, 1fr);
+  gap: 13px;
+  overflow-x: auto;
+  padding: 4px 2px 12px;
+  align-items: start;
+}
+.crm-column {
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--stage-color);
+  border-radius: 15px;
+  background: rgba(255,255,255,.018);
+  min-height: 230px;
+}
+.crm-column-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 12px 10px;
+}
+.crm-column-head > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.crm-column-head small {
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #201b15;
+  color: var(--muted);
+}
+.crm-stage-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--stage-color);
+}
+.crm-cards {
+  display: grid;
+  gap: 9px;
+  padding: 0 10px 10px;
+}
+.crm-card {
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--card);
+  overflow: hidden;
+}
+.crm-card.won { border-color: rgba(114,184,141,.55); }
+.crm-card.lost { opacity: .7; }
+.crm-card-main {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.crm-card-main:hover { background: rgba(255,255,255,.025); }
+.crm-card h4,
+.crm-card p { margin: 0; }
+.crm-card h4 { font-size: 15px; }
+.crm-card p { color: var(--muted); font-size: 13px; }
+.crm-card-main small { display: block; }
+.crm-value { color: var(--copper2); }
+.crm-card-actions {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  padding: 7px;
+  border-top: 1px solid var(--line);
+}
+.crm-card-actions select { width: 100%; font-size: 12px; }
+.crm-card-actions .btn { padding: 7px 8px; font-size: 11px; }
+.crm-empty {
+  padding: 35px 10px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+body[data-tenant="nayara-lash"] .crm-toolbar select,
+body[data-tenant="nayara-lash"] .crm-card-actions select { background: #fff; color: var(--ink); }
+body[data-tenant="nayara-lash"] .crm-column { background: rgba(255,255,255,.4); }
 @media (max-width: 900px) {
   .hero-grid,
   .split {
@@ -769,6 +880,8 @@ body[data-tenant="chrona"] {
   .location {
     grid-template-columns: 1fr;
   }
+  .crm-board { grid-auto-columns: minmax(270px, 82vw); }
+  .crm-toolbar { justify-content: flex-start; }
   .section {
     padding: 58px 0;
   }

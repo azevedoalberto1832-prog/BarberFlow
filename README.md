@@ -15,7 +15,8 @@ A **PALAZZO STUDIO BARBER** é o primeiro tenant real e a **Nayara Lash Designer
 - Conclusão de atendimento com lançamento idempotente no caixa.
 - CRUD persistente de clientes, serviços, profissionais, movimentações e configurações.
 - Super Admin Chrona para gestão central de tenants, planos, trials e suspensão.
-- Esqueleto multi-tenant de CRM, automações, n8n e WhatsApp oficial, sem disparos reais nesta fase.
+- CRM multi-tenant com pipelines, etapas, oportunidades, próximas ações e acompanhamento de ganhos e perdas.
+- Esqueleto de automações, n8n e WhatsApp oficial, sem disparos reais nesta fase.
 
 ## Arquitetura e evolução
 

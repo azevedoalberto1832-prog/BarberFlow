@@ -25,10 +25,11 @@ evento Chrona → regra do tenant → execução deduplicada → consentimento e
 
 ## Próximas implementações
 
-1. CRUD do pipeline e oportunidades.
-2. Período de retorno configurável por serviço.
-3. Endpoint autenticado para o n8n consumir a fila.
-4. Cofre de segredos e Meta Cloud API.
-5. Webhook assinado para entrega e leitura.
-6. Opt-out, janela de 24 horas e templates aprovados.
-7. Métricas de conversão e reativação.
+O CRUD de pipelines, etapas e oportunidades já está disponível no painel administrativo, com próximas ações, valor estimado e estados de ganho ou perda.
+
+1. Período de retorno configurável por serviço.
+2. Endpoint autenticado para o n8n consumir a fila.
+3. Cofre de segredos e Meta Cloud API.
+4. Webhook assinado para entrega e leitura.
+5. Opt-out, janela de 24 horas e templates aprovados.
+6. Métricas de conversão e reativação.
