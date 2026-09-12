@@ -9,7 +9,7 @@ A **PALAZZO STUDIO BARBER** é o primeiro tenant real e a **Nayara Lash Designer
 - Catálogo público de serviços e contato por WhatsApp.
 - Agendamento autônomo em quatro passos, com soma de preço/duração e bloqueio de conflitos.
 - Área administrativa responsiva: dashboard, agenda, clientes, caixa, lembretes, serviços e configurações.
-- Lembretes de aniversário e retorno com período configurável por serviço e padrão de 30 dias.
+- Lembretes de aniversário e retorno com período configurável por serviço e padrão de 20 dias.
 - Persistência operacional no Supabase/PostgreSQL; o navegador não é a fonte da verdade.
 - Autenticação administrativa, isolamento multi-tenant por RLS e controle de assinatura.
 - Conclusão de atendimento com lançamento idempotente no caixa.

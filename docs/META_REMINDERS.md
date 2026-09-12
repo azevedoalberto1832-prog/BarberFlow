@@ -1,53 +1,50 @@
-# Lembretes Meta por tenant
+# Lembretes Meta universais
 
-## Objetivo
+## Escopos de número
 
-A Chrona prepara lembretes de WhatsApp para dois tipos de destinatário sem misturar dados entre empresas:
+A Chrona separa remetente e destinatário para evitar mistura entre empresas:
 
-- `client`: usa o número e o consentimento do cadastro do cliente.
-- `owner`: usa o responsável definido em `tenant_notification_settings`.
+- cada `whatsapp_connections.barbershop_id` representa o número oficial de um único tenant;
+- `client` recebe mensagens no número e com o consentimento do cadastro daquele tenant;
+- `owner` recebe avisos internos no número definido em `tenant_notification_settings`;
+- `platform_admin` recebe alertas de planos no número global definido em `platform_notification_settings`.
 
-Nenhuma mensagem é liberada apenas por existir na fila. O envio exige, ao mesmo tempo:
+Uma mensagem só pode sair quando a empresa, a regra, o consentimento, o telefone, a conexão Meta, o template aprovado e o lease da fila são válidos. O alerta de vencimento de plano continua elegível mesmo no instante em que a assinatura vence.
 
-1. tenant e assinatura ativos;
-2. regra de automação ativa;
-3. destinatário com telefone válido e consentimento;
-4. conexão Meta validada;
-5. nome de template Meta aprovado na regra;
-6. execução reservada com lease válido.
+## Matriz replicada
 
-## Regras replicadas
+Todo tenant existente e todo tenant novo recebe as mesmas sete regras, inicialmente desligadas:
 
-Cada tenant recebe três regras desligadas por padrão:
-
-| Chave | Destinatário | Agenda |
+| Chave | Destinatário | Momento |
 | --- | --- | --- |
-| `appointment_client_15m` | Cliente do agendamento | 15 minutos antes |
-| `appointment_owner_15m` | Responsável da empresa | 15 minutos antes |
-| `owner_personal_reminder` | Responsável da empresa | Data definida; repetição opcional |
+| `appointment_created_client` | Cliente | Assim que o horário é criado |
+| `appointment_client_15m` | Cliente | 15 minutos antes |
+| `appointment_owner_15m` | Responsável | 15 minutos antes |
+| `client_birthday` | Cliente | No aniversário, às 09h |
+| `client_return_20d` | Cliente | 20 dias após o serviço concluído |
+| `owner_personal_reminder` | Responsável | Data definida; repetição opcional |
+| `platform_subscription_expiring` | Admin Chrona | 7, 3, 1 e 0 dias antes do vencimento |
 
-As regras só serão ativadas depois que os nomes reais dos templates aprovados forem gravados em `conditions.meta_template_name`.
+As regras só devem ser ativadas depois que `conditions.meta_template_name` receber o nome real do template aprovado na Meta.
 
-## Agenda pessoal
+## Retorno e agenda pessoal
 
-`personal_reminders` guarda um aviso pontual ou recorrente. Para a recorrência de dois dias, `repeat_every_days = 2`. Quando uma ocorrência entra na fila, `next_run_at` avança exatamente dois dias. Avisos pontuais são pausados depois da primeira ocorrência criada.
+Ao concluir um atendimento, `complete_appointment` agenda o retorno usando o menor `return_interval_days` entre os serviços realizados. O padrão universal é 20 dias. Quando a mensagem de retorno é confirmada, o lembrete muda de `pending` para `sent`.
+
+`personal_reminders` guarda um aviso pontual ou recorrente. Para repetir a cada dois dias, use `repeat_every_days = 2`. A ocorrência seguinte só avança depois que a atual entra na fila, e a chave de deduplicação impede cópias.
 
 ## Preparação e envio
 
 ```text
 n8n consulta automation-queue
-  → generate_due_automation_runs prepara até 48 horas de agenda
+  → generate_all_automation_runs prepara todos os eventos
   → deduplication_key impede cópias
-  → claim_automation_runs reserva os itens vencidos
+  → claim_automation_runs valida tenant e destinatário e reserva os itens
   → n8n monta os componentes do template
-  → whatsapp-send envia pela Meta Cloud API
+  → whatsapp-send envia pela Meta Cloud API do tenant
   → finish_automation_run registra sucesso, falha ou nova tentativa
 ```
 
-O mesmo ciclo cancela lembretes ainda não enviados quando o agendamento muda de horário ou deixa de estar agendado/confirmado.
+O mesmo ciclo cancela lembretes de 15 minutos ainda não enviados quando o agendamento muda ou deixa de estar agendado/confirmado. A confirmação inicial usa uma chave própria e não é cancelada por esse ajuste.
 
-## Configuração prevista para a ligação Meta
-
-O worker deve consultar a fila pelo menos uma vez por minuto usando `action: "claim"`. A resposta agora inclui `generated`, `recipient`, `client`, `rule` e `payload`. O campo `payload` fornece os dados necessários para preencher as variáveis aprovadas do template sem expor o token da Meta ao n8n.
-
-Os nomes dos templates, a ordem exata dos componentes e a conexão com o número oficial serão definidos somente após a aprovação/configuração na Meta.
+O worker deve consultar a fila pelo menos uma vez por minuto usando `action: "claim"`. A resposta inclui `generated`, `recipient`, `client`, `rule` e `payload`, sem expor o token da Meta ao n8n.

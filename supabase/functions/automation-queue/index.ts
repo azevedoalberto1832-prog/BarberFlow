@@ -88,7 +88,7 @@ Deno.serve(async (request: Request) => {
       return json({ error: "horizonMinutes deve estar entre 5 e 10080" }, 400);
     }
 
-    const { data: generated, error: generationError } = await supabase.rpc("generate_due_automation_runs", {
+    const { data: generated, error: generationError } = await supabase.rpc("generate_all_automation_runs", {
       reference_time: new Date().toISOString(),
       horizon_minutes: horizonMinutes,
     });

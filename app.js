@@ -53,52 +53,7 @@ async function edge(name,body) {
   if(!response.ok) throw new Error(data?.error||data?.message||"Não foi possível concluir a operação");
   return data;
 }
-const SERVICES = [
-  {
-    id: "corte",
-    name: "Corte Clássico",
-    duration: 30,
-    price: 45,
-    active: true,
-    desc: "Acabamento preciso e finalização.",
-  },
-  {
-    id: "barba",
-    name: "Barba Premium",
-    duration: 30,
-    price: 35,
-    active: true,
-    desc: "Toalha quente, desenho e hidratação.",
-  },
-  {
-    id: "combo",
-    name: "Corte + Barba",
-    duration: 60,
-    price: 70,
-    active: true,
-    desc: "A experiência completa Monteiro.",
-  },
-  {
-    id: "progressiva",
-    name: "Progressiva",
-    duration: 60,
-    price: 90,
-    active: true,
-    desc: "Alinhamento e cuidado profissional.",
-  },
-  {
-    id: "sobrancelha",
-    name: "Sobrancelha",
-    duration: 15,
-    price: 20,
-    active: true,
-    desc: "Detalhe que transforma o resultado.",
-  },
-];
-let PEOPLE = [
-  { id: "joao", name: "João Monteiro" },
-  { id: "rafael", name: "Rafael Lima" },
-];
+let PEOPLE = [];
 const today = () => new Date().toISOString().slice(0, 10),
   uid = () => crypto.randomUUID?.() || Date.now() + Math.random() + "";
 const addDays = (n) => {
@@ -107,106 +62,31 @@ const addDays = (n) => {
   return d.toISOString().slice(0, 10);
 };
 const seed = {
-  services: SERVICES,
-  people: PEOPLE,
-  clients: [
-    ["Marcos Silva", "62991234567", "1988-08-30", 28],
-    ["Lucas Rocha", "62992345678", "1994-09-12", 7],
-    ["André Souza", "62993456789", "1990-08-29", 22],
-    ["Paulo Reis", "62994567890", "1985-11-03", 45],
-    ["Renato Alves", "62995678901", "1998-01-19", 12],
-  ].map((x, i) => ({
-    id: "cli" + i,
-    name: x[0],
-    phone: x[1],
-    birth: x[2],
-    lastVisit: addDays(-x[3]),
-  })),
-  appointments: [
-    {
-      id: "a1",
-      client: "Lucas Rocha",
-      phone: "62992345678",
-      serviceIds: ["corte"],
-      professional: "joao",
-      date: addDays(1),
-      time: "10:00",
-      duration: 30,
-      total: 45,
-      status: "Agendado",
-    },
-    {
-      id: "a2",
-      client: "Marcos Silva",
-      phone: "62991234567",
-      serviceIds: ["combo"],
-      professional: "rafael",
-      date: addDays(1),
-      time: "14:00",
-      duration: 60,
-      total: 70,
-      status: "Agendado",
-    },
-    {
-      id: "a3",
-      client: "André Souza",
-      phone: "62993456789",
-      serviceIds: ["barba"],
-      professional: "joao",
-      date: today(),
-      time: "16:00",
-      duration: 30,
-      total: 35,
-      status: "Concluído",
-    },
-  ],
-  cash: [
-    {
-      id: "m1",
-      type: "entrada",
-      desc: "Corte — André Souza",
-      value: 45,
-      category: "Serviços",
-      date: today(),
-      method: "Pix",
-    },
-    {
-      id: "m2",
-      type: "entrada",
-      desc: "Barba — Rafael M.",
-      value: 35,
-      category: "Serviços",
-      date: today(),
-      method: "Dinheiro",
-    },
-    {
-      id: "m3",
-      type: "saida",
-      desc: "Reposição de lâminas",
-      value: 28,
-      category: "Insumos",
-      date: today(),
-      method: "Pix",
-    },
-  ],
-  categories: ["Serviços", "Produtos", "Insumos", "Aluguel", "Marketing"],
+  services: [],
+  people: [],
+  clients: [],
+  appointments: [],
+  cash: [],
+  reminders: [],
+  categories: [],
   settings: {
-    shop: "PALAZZO STUDIO BARBER",
-    address: "Rua das Palmeiras, 128 — Centro, Goiânia - GO",
-    phone: "5565992788465",
+    shop: "Chrona",
+    address: "",
+    phone: "",
     open: "09:00",
     close: "19:00",
-    breakStart: "12:00",
-    breakEnd: "13:00",
-    greeting:
-      "Olá! Bem-vindo à PALAZZO STUDIO BARBER. Agende seu horário pelo nosso sistema oficial.",
+    breakStart: "",
+    breakEnd: "",
+    greeting: "",
+    instagram: "",
+    logo: "",
+    description: "",
+    primaryColor: "#6d5dfb",
+    secondaryColor: "#22c3a6",
+    visualDirection: "studio",
   },
 };
-let db = structuredClone({ ...seed, services: [], people: [], clients: [], appointments: [], cash: [], reminders: [] });
-db.settings.shop = "PALAZZO STUDIO BARBER";
-db.settings.phone = "5565992788465";
-db.settings.greeting =
-  "Olá! Bem-vindo à PALAZZO STUDIO BARBER. Agende seu horário pelo nosso sistema oficial.";
+let db = structuredClone(seed);
 let booking = {
   step: 0,
   serviceIds: [],
@@ -225,7 +105,7 @@ let booking = {
 let adminTab = "dashboard";
 let cashTab = "movimentos";
 let agendaDate = addDays(1);
-let currentProfile=null,currentShop=null,currentSubscription=null,adminLoaded=false,platformTenants=[];
+let currentProfile=null,currentShop=null,currentSubscription=null,adminLoaded=false,platformTenants=[],platformNotificationSettings=null;
 let whatsappConnection=null,automationRules=[],automationRuns=[],notificationSettings=null,personalReminders=[];
 let crmPipelines=[],crmStages=[],crmOpportunities=[],activePipelineId="";
 const save = () => {};
@@ -305,7 +185,7 @@ function openAdminForm(kind, id = "") {
       name: "",
       price: 50,
       duration: 30,
-      returnDays: 30,
+      returnDays: 20,
       desc: "",
     };
     title = id ? "Editar serviço" : "Novo serviço";
@@ -492,15 +372,17 @@ async function loadAdminData() {
   currentProfile=profiles?.[0];
   if(!currentProfile?.active) throw new Error("Usuário sem acesso ativo.");
   if(currentProfile.role==="platform_admin"){
-    const [shops,subscriptions,profilesAll,appointments,servicesAll,professionalsAll]=await Promise.all([
+    const [shops,subscriptions,profilesAll,appointments,servicesAll,professionalsAll,platformSettingsRows]=await Promise.all([
       rest("barbershops?select=*&order=created_at.desc"),
       rest("subscriptions?select=*&order=created_at.desc"),
       rest("profiles?select=id,barbershop_id,role,active"),
       rest("appointments?select=id,barbershop_id,status"),
       rest("services?select=id,barbershop_id,active"),
-      rest("professionals?select=id,barbershop_id,active")
+      rest("professionals?select=id,barbershop_id,active"),
+      rest(`platform_notification_settings?select=*&profile_id=eq.${currentProfile.id}`)
     ]);
     platformTenants=(shops||[]).map(shop=>({shop,subscription:(subscriptions||[]).find(s=>s.barbershop_id===shop.id),users:(profilesAll||[]).filter(p=>p.barbershop_id===shop.id&&p.active).length,appointments:(appointments||[]).filter(a=>a.barbershop_id===shop.id).length,services:(servicesAll||[]).filter(s=>s.barbershop_id===shop.id&&s.active).length,professionals:(professionalsAll||[]).filter(p=>p.barbershop_id===shop.id&&p.active).length}));
+    platformNotificationSettings=platformSettingsRows?.[0]||null;
     adminLoaded=true; return;
   }
   const shops=await rest(`barbershops?select=*&id=eq.${currentProfile.barbershop_id}`); currentShop=shops?.[0];
@@ -562,12 +444,19 @@ function tenantAdminGuardPage(){return `<main class="section chrona-login"><div 
 function platformPage(){
   const active=platformTenants.filter(t=>t.shop.active&&["active","trial"].includes(t.subscription?.status)).length;
   const trials=platformTenants.filter(t=>t.subscription?.status==="trial").length;
+  const expiring=platformTenants.filter((tenant)=>{
+    const end=tenant.subscription?.current_period_end||tenant.subscription?.trial_ends_at;
+    if(!end)return false;
+    const days=(new Date(end)-new Date())/86400000;
+    return days>=0&&days<=7;
+  }).length;
+  const adminReady=!!(platformNotificationSettings?.admin_phone_normalized&&platformNotificationSettings?.whatsapp_opt_in);
   const rows=platformTenants.map((tenant)=>{
     const ready=tenant.users>0&&tenant.services>0&&tenant.professionals>0;
     const missing=[tenant.users?null:"acesso",tenant.services?null:"serviços",tenant.professionals?null:"profissionais"].filter(Boolean).join(", ");
     return `<tr><td><div class="tenant-cell"><span class="tenant-dot" style="background:${esc(tenant.shop.primary_color||"#6d5dfb")}"></span><span><b>${esc(tenant.shop.name)}</b><br><small class="muted">/${esc(tenant.shop.slug)}</small></span></div></td><td>${esc(tenant.shop.business_type||"services")}</td><td>${esc(tenant.subscription?.plan||"—")}</td><td><span class="badge ${tenant.subscription?.status==="suspended"?"red":"green"}">${esc(tenant.subscription?.status||"—")}</span></td><td><span class="badge ${ready?"green":""}">${ready?"Pronto":`Falta ${esc(missing)}`}</span></td><td>${tenant.appointments}</td><td><div class="row-actions"><a class="btn btn-ghost" target="_blank" rel="noopener" href="?tenant=${encodeURIComponent(tenant.shop.slug)}">Abrir agenda</a>${tenant.users?"":`<button class="btn btn-outline" data-owner-tenant="${tenant.shop.id}">Convidar responsável</button>`}<button class="btn btn-ghost" data-platform-status="${tenant.shop.id}" data-next-status="${tenant.subscription?.status==="suspended"?"active":"suspended"}">${tenant.subscription?.status==="suspended"?"Ativar":"Suspender"}</button></div></td></tr>`;
   }).join("");
-  return `<div class="admin chrona-platform"><main class="admin-main platform-main"><header class="admin-header platform-header"><div><div class="chrona-wordmark compact"><span>C</span> CHRONA</div><p class="muted">Controle central da operação multi-tenant</p></div><div class="header-actions"><button class="btn btn-outline" data-logout>Sair</button><button class="btn btn-dark" data-new-tenant>+ Nova empresa</button></div></header><section class="platform-hero"><div><div class="eyebrow">VISÃO DA PLATAFORMA</div><h1>Empresas em operação</h1><p>Acompanhe implantação, acesso e saúde dos estabelecimentos em um só lugar.</p></div><div class="platform-orbit"><span>CHRONA</span><i></i><i></i><i></i></div></section><div class="metrics"><div class="metric"><small>Empresas</small><b>${platformTenants.length}</b><span>cadastradas</span></div><div class="metric"><small>Operando</small><b>${active}</b><span>ativas agora</span></div><div class="metric"><small>Em trial</small><b>${trials}</b><span>30 dias de teste</span></div><div class="metric"><small>Agendamentos</small><b>${platformTenants.reduce((n,t)=>n+t.appointments,0)}</b><span>na plataforma</span></div></div><section class="panel platform-table"><div class="toolbar"><div><div class="eyebrow">PORTFÓLIO</div><h3 style="margin:5px 0 0">Empresas</h3></div><small class="muted">A empresa só fica pronta após acesso, serviços e profissionais.</small></div><div class="table-wrap"><table><thead><tr><th>Empresa</th><th>Segmento</th><th>Plano</th><th>Status</th><th>Preparação</th><th>Agenda</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty">Nenhuma empresa cadastrada.</td></tr>'}</tbody></table></div></section></main></div>`;
+  return `<div class="admin chrona-platform"><main class="admin-main platform-main"><header class="admin-header platform-header"><div><div class="chrona-wordmark compact"><span>C</span> CHRONA</div><p class="muted">Controle central da operação multi-tenant</p></div><div class="header-actions"><button class="btn btn-outline" data-logout>Sair</button><button class="btn btn-dark" data-new-tenant>+ Nova empresa</button></div></header><section class="platform-hero"><div><div class="eyebrow">VISÃO DA PLATAFORMA</div><h1>Empresas em operação</h1><p>Acompanhe implantação, acesso e saúde dos estabelecimentos em um só lugar.</p></div><div class="platform-orbit"><span>CHRONA</span><i></i><i></i><i></i></div></section><div class="metrics"><div class="metric"><small>Empresas</small><b>${platformTenants.length}</b><span>cadastradas</span></div><div class="metric"><small>Operando</small><b>${active}</b><span>ativas agora</span></div><div class="metric"><small>Em trial</small><b>${trials}</b><span>30 dias de teste</span></div><div class="metric"><small>Vencem em 7 dias</small><b class="${expiring?"danger":""}">${expiring}</b><span>alertas previstos</span></div></div><section class="panel"><div class="toolbar"><div><div class="eyebrow">ALERTAS DA CHRONA</div><h3 style="margin:5px 0 0">Seu número administrativo</h3><small class="muted">Recebe avisos de planos a 7, 3, 1 e 0 dias do vencimento.</small></div><span class="badge ${adminReady?"green":""}">${adminReady?"Pronto":"Configurar"}</span></div><form id="platform-alert-form"><div class="form-grid"><label class="field"><span>Nome do administrador</span><input name="adminName" value="${esc(platformNotificationSettings?.admin_name||currentProfile.name||"")}" required></label><label class="field"><span>Seu WhatsApp</span><input name="adminPhone" value="${esc(platformNotificationSettings?.admin_phone||"")}" placeholder="(DDD) 99999-9999" required></label><label class="field full consent-field"><span><input name="adminOptIn" type="checkbox" ${platformNotificationSettings?.whatsapp_opt_in?"checked":""}> Autorizo alertas administrativos neste número</span><small class="muted">Cada aviso será enviado pelo número oficial da empresa correspondente, mantendo o isolamento entre tenants.</small></label></div><div class="modal-actions"><span></span><button class="btn btn-dark" type="submit">Salvar número administrativo</button></div></form></section><section class="panel platform-table"><div class="toolbar"><div><div class="eyebrow">PORTFÓLIO</div><h3 style="margin:5px 0 0">Empresas</h3></div><small class="muted">A empresa só fica pronta após acesso, serviços e profissionais.</small></div><div class="table-wrap"><table><thead><tr><th>Empresa</th><th>Segmento</th><th>Plano</th><th>Status</th><th>Preparação</th><th>Agenda</th><th>Ações</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty">Nenhuma empresa cadastrada.</td></tr>'}</tbody></table></div></section></main></div>`;
 }
 function openTenantForm(){
   document.querySelector("#tenant-modal")?.remove();
@@ -782,15 +671,15 @@ function adminContent() {
     const eligibleClients=db.clients.filter((client)=>client.optIn&&client.phone.replace(/\D/g,"").length>=10).length;
     const ownerReady=Boolean(notificationSettings?.owner_phone_normalized&&notificationSettings?.owner_whatsapp_opt_in);
     const ruleCards=automationRules.map((rule)=>{
-      const recipient=rule.recipient_type==="owner"?"Responsável":"Cliente";
-      const timing=rule.trigger_type==="appointment_reminder"?`${rule.lead_minutes||0} min antes`:rule.trigger_type==="personal_reminder"?"Agenda pessoal":rule.trigger_type;
+      const recipient=rule.recipient_type==="platform_admin"?"Admin Chrona":rule.recipient_type==="owner"?"Responsável":"Cliente";
+      const timing=({appointment_created:"Ao marcar",appointment_reminder:`${rule.lead_minutes||0} min antes`,personal_reminder:"Agenda pessoal",birthday:"No aniversário, às 09h",return_due:"20 dias após o serviço",subscription_expiring:"7, 3, 1 e 0 dias antes"})[rule.trigger_type]||rule.trigger_type;
       const template=rule.conditions?.meta_template_name?`Template ${esc(rule.conditions.meta_template_name)}`:"Template Meta pendente";
       return `<div class="list-card"><span><b>${esc(rule.name)}</b><br><small class="muted">${recipient} · ${timing} · ${template}</small></span><span class="badge ${rule.active?"green":""}">${rule.active?"Ativa":"Preparada"}</span></div>`;
     }).join("")||'<div class="empty">Nenhuma regra cadastrada.</div>';
     const connectionForm=currentProfile?.role==="owner"?`<form id="whatsapp-connect-form"><div class="form-grid"><label class="field"><span>ID da conta WhatsApp Business</span><input name="businessAccountId" inputmode="numeric" value="${esc(whatsappConnection?.business_account_id||"")}" required></label><label class="field"><span>ID do número de telefone</span><input name="phoneNumberId" inputmode="numeric" value="${esc(whatsappConnection?.phone_number_id||"")}" required></label><label class="field full"><span>Token permanente da Meta</span><input name="accessToken" type="password" autocomplete="off" placeholder="Cole o token para validar e guardar no cofre" required><small class="muted">O token segue direto para a função segura, é criptografado no Supabase Vault e nunca volta para esta página.</small></label></div><div class="modal-actions"><span></span><button class="btn btn-dark" type="submit">${connected?"Revalidar conexão":"Conectar com a Meta"}</button></div></form>`:'<div class="empty">Somente o proprietário pode configurar as credenciais da Meta.</div>';
     const ownerForm=currentProfile?.role==="owner"?`<form id="notification-owner-form"><div class="form-grid"><label class="field"><span>Nome do responsável</span><input name="ownerName" value="${esc(notificationSettings?.owner_name||currentProfile.name||"")}" required></label><label class="field"><span>WhatsApp do responsável</span><input name="ownerPhone" value="${esc(notificationSettings?.owner_phone||"")}" placeholder="(DDD) 99999-9999" required></label><label class="field full consent-field"><span><input name="ownerOptIn" type="checkbox" ${notificationSettings?.owner_whatsapp_opt_in?"checked":""}> Autorizo lembretes operacionais neste número</span><small class="muted">Usado para avisos da agenda e lembretes pessoais; nunca substitui o número oficial conectado à Meta.</small></label></div><div class="modal-actions"><span></span><button class="btn btn-dark" type="submit">Salvar responsável</button></div></form>`:'<div class="empty">Somente o proprietário pode alterar o destinatário responsável.</div>';
     const personalCards=personalReminders.map((item)=>`<div class="list-card"><span><b>${esc(item.title)}</b><br><small class="muted">Próximo: ${dateTimeBR(item.next_run_at)} · ${item.repeat_every_days?`a cada ${item.repeat_every_days} dias`:"uma vez"}</small></span><span><button class="btn btn-ghost" data-edit-personal="${item.id}">Editar</button><button class="badge ${item.active?"green":""}" data-toggle-personal="${item.id}">${item.active?"Ativo":"Pausado"}</button><button class="btn btn-ghost danger" data-delete-personal="${item.id}">Excluir</button></span></div>`).join("")||'<div class="empty">Nenhum lembrete pessoal criado.</div>';
-    return `<div class="metrics"><div class="metric"><small>Conexão Meta</small><b class="${connected?"":"danger"}">${connected?"Ativa":"Pendente"}</b></div><div class="metric"><small>Responsável</small><b class="${ownerReady?"":"danger"}">${ownerReady?"Pronto":"Pendente"}</b></div><div class="metric"><small>Clientes elegíveis</small><b>${eligibleClients}</b></div><div class="metric"><small>Fila / enviadas / falhas</small><b>${queued} / ${sent} / <span class="${failed?"danger":""}">${failed}</span></b></div></div><div class="automation-readiness"><b>Base Meta preparada</b><span>15 min antes para cliente e responsável · agenda pessoal recorrente · deduplicação e consentimento por destinatário.</span></div><div class="split"><section class="panel"><div class="toolbar"><div><h3 style="margin:0">Destinatário responsável</h3><small class="muted">Número que recebe lembretes internos da empresa.</small></div><span class="badge ${ownerReady?"green":""}">${ownerReady?"Elegível":"Configurar"}</span></div>${ownerForm}</section><section class="panel"><div class="toolbar"><div><h3 style="margin:0">Agenda pessoal</h3><small class="muted">Avisos pontuais ou repetidos, como a cada 2 dias.</small></div>${currentProfile?.role==="owner"?'<button class="btn btn-dark" data-add-personal>+ Lembrete</button>':""}</div><div class="list-cards">${personalCards}</div></section></div><div class="split automation-lower"><section class="panel"><div class="toolbar"><div><h3 style="margin:0">Regras de lembrete</h3><small class="muted">Modelos replicados automaticamente para cada empresa.</small></div><span class="badge ${currentSubscription?.plan==="pro"?"green":""}">${currentSubscription?.plan==="pro"?"Plano Pro":"Recurso Pro"}</span></div><div class="list-cards">${ruleCards}</div><div class="empty">As regras continuam desligadas até vincularmos os templates aprovados pela Meta.</div></section><section class="panel"><div class="toolbar"><div><h3 style="margin:0">WhatsApp oficial</h3><small class="muted">Meta Cloud API ${esc(whatsappConnection?.graph_api_version||"v26.0")}</small></div><span class="badge ${connected?"green":"red"}">${connected?"Conectado":"Amanhã"}</span></div>${connected?`<div class="list-card"><span><b>${esc(whatsappConnection.verified_name||db.settings.shop)}</b><br><small class="muted">${esc(whatsappConnection.display_phone_number||whatsappConnection.phone_number_id)}${whatsappConnection.quality_rating?` · qualidade ${esc(whatsappConnection.quality_rating)}`:""}</small></span><span class="badge green">Verificado</span></div>`:"<div class=\"empty\">A estrutura está pronta. A credencial e os IDs da Meta serão ligados na próxima etapa.</div>"}${connectionForm}</section></div>`;
+    return `<div class="metrics"><div class="metric"><small>Conexão Meta</small><b class="${connected?"":"danger"}">${connected?"Ativa":"Pendente"}</b></div><div class="metric"><small>Responsável</small><b class="${ownerReady?"":"danger"}">${ownerReady?"Pronto":"Pendente"}</b></div><div class="metric"><small>Clientes elegíveis</small><b>${eligibleClients}</b></div><div class="metric"><small>Fila / enviadas / falhas</small><b>${queued} / ${sent} / <span class="${failed?"danger":""}">${failed}</span></b></div></div><div class="automation-readiness"><b>Base Meta universal preparada</b><span>Confirmação de horário · 15 min antes · aniversário · retorno em 20 dias · agenda pessoal · vencimento de plano para o admin Chrona.</span></div><div class="split"><section class="panel"><div class="toolbar"><div><h3 style="margin:0">Destinatário responsável</h3><small class="muted">Número que recebe lembretes internos da empresa.</small></div><span class="badge ${ownerReady?"green":""}">${ownerReady?"Elegível":"Configurar"}</span></div>${ownerForm}</section><section class="panel"><div class="toolbar"><div><h3 style="margin:0">Agenda pessoal</h3><small class="muted">Avisos pontuais ou repetidos, como a cada 2 dias.</small></div>${currentProfile?.role==="owner"?'<button class="btn btn-dark" data-add-personal>+ Lembrete</button>':""}</div><div class="list-cards">${personalCards}</div></section></div><div class="split automation-lower"><section class="panel"><div class="toolbar"><div><h3 style="margin:0">Regras de lembrete</h3><small class="muted">Modelos replicados automaticamente para cada empresa.</small></div><span class="badge ${currentSubscription?.plan==="pro"?"green":""}">${currentSubscription?.plan==="pro"?"Plano Pro":"Recurso Pro"}</span></div><div class="list-cards">${ruleCards}</div><div class="empty">As regras continuam desligadas até vincularmos os templates aprovados pela Meta.</div></section><section class="panel"><div class="toolbar"><div><h3 style="margin:0">WhatsApp oficial</h3><small class="muted">Meta Cloud API ${esc(whatsappConnection?.graph_api_version||"v26.0")}</small></div><span class="badge ${connected?"green":"red"}">${connected?"Conectado":"Amanhã"}</span></div>${connected?`<div class="list-card"><span><b>${esc(whatsappConnection.verified_name||db.settings.shop)}</b><br><small class="muted">${esc(whatsappConnection.display_phone_number||whatsappConnection.phone_number_id)}${whatsappConnection.quality_rating?` · qualidade ${esc(whatsappConnection.quality_rating)}`:""}</small></span><span class="badge green">Verificado</span></div>`:"<div class=\"empty\">A estrutura está pronta. A credencial e os IDs da Meta serão ligados na próxima etapa.</div>"}${connectionForm}</section></div>`;
   }
   if(adminTab === "profissionais") return `<section class="panel"><div class="toolbar"><span class="muted">Equipe e disponibilidade para agendamentos</span><button class="btn btn-dark" data-add-professional>+ Profissional</button></div><div class="list-cards">${PEOPLE.map(p=>`<div class="list-card"><span><b>${p.name}</b><br><small class="muted">${p.phone||"Sem telefone"}</small></span><span><button class="btn btn-ghost" data-edit-professional="${p.id}">Editar</button><button class="badge ${p.active?"green":"red"}" data-toggle-professional="${p.id}">${p.active?"Ativo":"Inativo"}</button></span></div>`).join("")||'<div class="empty">Nenhum profissional cadastrado.</div>'}</div></section>`;
   return `<section class="panel"><div class="toolbar"><div><div class="eyebrow">IDENTIDADE DA EMPRESA</div><h3 style="margin:5px 0 0">Página pública e operação</h3></div><a class="btn btn-outline" target="_blank" rel="noopener" href="?tenant=${encodeURIComponent(currentShop.slug)}">Visualizar página</a></div><div class="form-grid"><label class="field"><span>Nome da empresa</span><input id="set-shop" value="${esc(db.settings.shop)}"></label><label class="field"><span>WhatsApp</span><input id="set-phone" value="${esc(db.settings.phone)}"></label><label class="field"><span>Instagram</span><input id="set-instagram" value="${esc(db.settings.instagram)}" placeholder="@empresa"></label><label class="field"><span>Link da logo</span><input id="set-logo" value="${esc(db.settings.logo)}" placeholder="https://..."></label><label class="field full"><span>Endereço</span><input id="set-address" value="${esc(db.settings.address)}"></label><label class="field full"><span>Descrição da página pública</span><textarea id="set-description" rows="3">${esc(db.settings.description)}</textarea></label><label class="color-field"><input id="set-primary-color" type="color" value="${esc(db.settings.primaryColor)}"><span><b>Cor predominante</b><small>Marca, superfícies e ações</small></span></label><label class="color-field"><input id="set-secondary-color" type="color" value="${esc(db.settings.secondaryColor)}"><span><b>Cor da tinta</b><small>Textos, traços e contraste</small></span></label><div class="direction-config-note"><small>DIREÇÃO AUTOMÁTICA</small><b>${directionLabel(db.settings.visualDirection)}</b><span>A fonte e a composição acompanham as duas cores.</span></div><label class="field"><span>Abertura</span><input id="set-open" type="time" value="${db.settings.open}"></label><label class="field"><span>Fechamento</span><input id="set-close" type="time" value="${db.settings.close}"></label><label class="field"><span>Início do intervalo</span><input id="set-break-start" type="time" value="${db.settings.breakStart}"></label><label class="field"><span>Fim do intervalo</span><input id="set-break-end" type="time" value="${db.settings.breakEnd}"></label><label class="field full"><span>Saudação do WhatsApp</span><textarea id="set-greeting" rows="4">${esc(db.settings.greeting)}</textarea></label></div><div class="modal-actions"><span></span><button class="btn btn-dark" data-save-settings>Salvar configurações</button></div></section>`;
@@ -810,12 +699,22 @@ function bind() {
   document.querySelector("#password-form")?.addEventListener("submit",async event=>{event.preventDefault();const form=new FormData(event.currentTarget),password=form.get("password"),confirm=form.get("confirm"),button=event.currentTarget.querySelector("button[type=submit]");if(password!==confirm)return toast("As senhas precisam ser iguais");button.disabled=true;button.textContent="Salvando…";try{const user=await updatePassword(password);const tenant=SHOP_SLUG||user?.user_metadata?.tenant_slug||"";sessionStorage.removeItem("chrona-session");sessionStorage.setItem("chrona-login-email",user?.email||AUTH_CALLBACK.get("email")||"");sessionStorage.setItem("chrona-login-notice",`Agora entre para acessar ${tenant?db.settings.shop:"a Chrona"}.`);const destination=tenant?`${location.pathname}?tenant=${encodeURIComponent(tenant)}#admin`:`${location.pathname}?platform=chrona#admin`;location.replace(destination);}catch(error){toast(error.message);button.disabled=false;button.textContent="Criar senha e continuar";}});
   document.querySelector("#login-form")?.addEventListener("submit",async(event)=>{event.preventDefault();const button=event.currentTarget.querySelector("button[type=submit]");button.disabled=true;button.textContent="Entrando…";try{const form=new FormData(event.currentTarget);sessionStorage.setItem("chrona-login-email",String(form.get("email")||""));await signIn(form.get("email"),form.get("password"));await loadAdminData();loginNotice="";render();toast("Acesso autorizado");}catch(error){toast(error.message);button.disabled=false;button.textContent="Entrar no painel";}});
   document.querySelector("[data-forgot]")?.addEventListener("click",async()=>{const email=document.querySelector('#login-form [name=email]').value.trim();if(!email)return toast("Digite seu e-mail primeiro");try{await requestPasswordReset(email);toast("Se o e-mail estiver cadastrado, o link será enviado");}catch(error){toast(error.message);}});
-  document.querySelector("[data-logout]")?.addEventListener("click",()=>{authSession=null;adminLoaded=false;currentProfile=currentShop=currentSubscription=null;sessionStorage.removeItem("chrona-session");render();});
+  document.querySelector("[data-logout]")?.addEventListener("click",()=>{authSession=null;adminLoaded=false;currentProfile=currentShop=currentSubscription=platformNotificationSettings=null;sessionStorage.removeItem("chrona-session");render();});
   document.querySelector("[data-new-tenant]")?.addEventListener("click",openTenantForm);
   document.querySelectorAll("[data-owner-tenant]").forEach((button)=>button.addEventListener("click",()=>{const tenant=platformTenants.find((item)=>item.shop.id===button.dataset.ownerTenant);if(tenant)openTenantOwnerForm(tenant);}));
   document.querySelector("[data-use-platform]")?.addEventListener("click",()=>{location.href=`${location.pathname}?platform=chrona#admin`;});
-  document.querySelector("[data-switch-account]")?.addEventListener("click",()=>{authSession=null;adminLoaded=false;currentProfile=currentShop=currentSubscription=null;sessionStorage.removeItem("chrona-session");render();});
+  document.querySelector("[data-switch-account]")?.addEventListener("click",()=>{authSession=null;adminLoaded=false;currentProfile=currentShop=currentSubscription=platformNotificationSettings=null;sessionStorage.removeItem("chrona-session");render();});
   document.querySelectorAll("[data-platform-status]").forEach(x=>x.onclick=async()=>{try{await rest(`subscriptions?barbershop_id=eq.${x.dataset.platformStatus}`,{method:"PATCH",body:{status:x.dataset.nextStatus}});await loadAdminData();render();toast(x.dataset.nextStatus==="suspended"?"Empresa suspensa; dados preservados":"Empresa reativada");}catch(error){toast(error.message);}});
+  document.querySelector("#platform-alert-form")?.addEventListener("submit",async(event)=>{
+    event.preventDefault();
+    const button=event.currentTarget.querySelector('button[type="submit"]');button.disabled=true;
+    const values=Object.fromEntries(new FormData(event.currentTarget).entries());
+    const digits=String(values.adminPhone||"").replace(/\D/g,"");
+    if(digits.length<10){toast("Informe seu WhatsApp com DDD");button.disabled=false;return;}
+    const body={profile_id:currentProfile.id,admin_name:String(values.adminName||"").trim(),admin_phone:String(values.adminPhone||"").trim(),whatsapp_opt_in:values.adminOptIn==="on",default_country_code:platformNotificationSettings?.default_country_code||"55"};
+    try{await rest("platform_notification_settings?on_conflict=profile_id",{method:"POST",body,prefer:"resolution=merge-duplicates,return=representation"});await loadAdminData();render();toast("Número administrativo salvo para os alertas da Chrona");}
+    catch(error){toast(error.message);button.disabled=false;}
+  });
   document.querySelectorAll("[data-book]").forEach(
     (b) =>
       (b.onclick = () => {
