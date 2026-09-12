@@ -112,6 +112,7 @@ Deno.serve(async (request: Request) => {
   const action = stringValue(body.action) || "create";
   const ownerEmail = stringValue(body.ownerEmail).toLowerCase();
   const ownerName = stringValue(body.ownerName);
+  const visualDirection = stringValue(body.visualDirection) || "studio";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail) || ownerEmail.length > 254) {
     return json(request, { error: "Informe um e-mail válido para o responsável" }, 400);
   }
@@ -165,6 +166,9 @@ Deno.serve(async (request: Request) => {
     }
     if (!new Set(["essential", "pro"]).has(plan)) {
       return json(request, { error: "Plano inválido" }, 400);
+    }
+    if (!new Set(["editorial", "studio", "serene"]).has(visualDirection)) {
+      return json(request, { error: "Direção visual inválida" }, 400);
     }
     if (logoUrl && !/^https:\/\/\S+$/i.test(logoUrl)) {
       return json(request, { error: "A logo deve usar um link HTTPS" }, 400);
@@ -243,8 +247,24 @@ Deno.serve(async (request: Request) => {
     }, provisionResult.error.code === "42501" ? 403 : 400);
   }
 
+  if (action === "create") {
+    const { error: directionError } = await adminClient
+      .from("barbershops")
+      .update({ visual_direction: visualDirection })
+      .eq("id", provisionResult.data.id);
+    if (directionError) {
+      return json(request, {
+        error: "A empresa foi criada, mas a direção visual não pôde ser aplicada.",
+        tenant: provisionResult.data,
+      }, 500);
+    }
+  }
+
   return json(request, {
-    tenant: provisionResult.data,
+    tenant: {
+      ...provisionResult.data,
+      ...(action === "create" ? { visualDirection } : {}),
+    },
     owner: { email: ownerEmail, name: ownerName },
     inviteSent: true,
     redirectTo,
