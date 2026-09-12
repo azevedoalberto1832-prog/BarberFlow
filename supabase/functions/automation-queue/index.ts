@@ -80,9 +80,21 @@ Deno.serve(async (request: Request) => {
     const workerId = typeof body.workerId === "string" ? body.workerId.trim() : "";
     const batchSize = Number(body.batchSize ?? 10);
     const leaseSeconds = Number(body.leaseSeconds ?? 300);
+    const horizonMinutes = Number(body.horizonMinutes ?? 2880);
     if (!workerId || workerId.length > 100) return json({ error: "workerId inválido" }, 400);
     if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 50) return json({ error: "batchSize deve estar entre 1 e 50" }, 400);
     if (!Number.isInteger(leaseSeconds) || leaseSeconds < 60 || leaseSeconds > 1800) return json({ error: "leaseSeconds deve estar entre 60 e 1800" }, 400);
+    if (!Number.isInteger(horizonMinutes) || horizonMinutes < 5 || horizonMinutes > 10080) {
+      return json({ error: "horizonMinutes deve estar entre 5 e 10080" }, 400);
+    }
+
+    const { data: generated, error: generationError } = await supabase.rpc("generate_due_automation_runs", {
+      reference_time: new Date().toISOString(),
+      horizon_minutes: horizonMinutes,
+    });
+    if (generationError) {
+      return json({ error: "Não foi possível preparar os lembretes", code: generationError.code }, 500);
+    }
 
     const { data, error } = await supabase.rpc("claim_automation_runs", {
       requested_worker_id: workerId,
@@ -92,7 +104,7 @@ Deno.serve(async (request: Request) => {
     if (error) return json({ error: "Não foi possível reservar a fila", code: error.code }, 500);
 
     const items = Array.isArray(data) ? data.map((row) => row.item) : [];
-    return json({ items, count: items.length });
+    return json({ generated, items, count: items.length });
   }
 
   if (body.action === "complete") {

@@ -226,7 +226,7 @@ let adminTab = "dashboard";
 let cashTab = "movimentos";
 let agendaDate = addDays(1);
 let currentProfile=null,currentShop=null,currentSubscription=null,adminLoaded=false,platformTenants=[];
-let whatsappConnection=null,automationRules=[],automationRuns=[];
+let whatsappConnection=null,automationRules=[],automationRuns=[],notificationSettings=null,personalReminders=[];
 let crmPipelines=[],crmStages=[],crmOpportunities=[],activePipelineId="";
 const save = () => {};
 let remoteSlots = [], slotProfessionals = {}, slotsLoaded = false;
@@ -299,7 +299,7 @@ function openAdminForm(kind, id = "") {
       lastVisit: today(),
     };
     title = id ? "Editar cliente" : "Novo cliente";
-    fields = `<label class="field"><span>Nome *</span><input name="name" value="${item.name}" required></label><label class="field"><span>WhatsApp *</span><input name="phone" value="${item.phone}" required></label><label class="field"><span>Nascimento</span><input name="birth" type="date" value="${item.birth}"></label><label class="field"><span>Última visita</span><input name="lastVisit" type="date" value="${item.lastVisit}"></label>`;
+    fields = `<label class="field"><span>Nome *</span><input name="name" value="${item.name}" required></label><label class="field"><span>WhatsApp *</span><input name="phone" value="${item.phone}" placeholder="(DDD) 99999-9999" required></label><label class="field"><span>Nascimento</span><input name="birth" type="date" value="${item.birth}"></label><label class="field"><span>Última visita</span><input name="lastVisit" type="date" value="${item.lastVisit}"></label><label class="field full consent-field"><span><input name="optIn" type="checkbox" ${item.optIn?"checked":""}> Cliente autorizou lembretes pelo WhatsApp</span><small class="muted">Obrigatório para receber mensagens automáticas pela Meta.</small></label>`;
   } else if (kind === "service") {
     item = db.services.find((x) => x.id === id) || {
       name: "",
@@ -337,7 +337,8 @@ function openAdminForm(kind, id = "") {
     try {
       if (kind === "client") {
         const phone=value.phone.replace(/\D/g,""); if(phone.length<10) throw new Error("Informe um WhatsApp válido");
-        const data={barbershop_id:currentProfile.barbershop_id,name:value.name.trim(),phone:value.phone,phone_normalized:phone,birth_date:value.birth||null,last_visit:value.lastVisit||null};
+        const optIn=value.optIn==="on";
+        const data={barbershop_id:currentProfile.barbershop_id,name:value.name.trim(),phone:value.phone,phone_normalized:phone,birth_date:value.birth||null,last_visit:value.lastVisit||null,whatsapp_opt_in:optIn,whatsapp_opt_in_at:optIn?(item.whatsappOptInAt||new Date().toISOString()):null,updated_at:new Date().toISOString()};
         await rest(id?`clients?id=eq.${id}`:"clients",{method:id?"PATCH":"POST",body:data});
       }
       if (kind === "service") {
@@ -351,6 +352,25 @@ function openAdminForm(kind, id = "") {
       if (kind === "cash") await rest("cash_transactions",{method:"POST",body:{barbershop_id:currentProfile.barbershop_id,type:value.type==="entrada"?"income":"expense",description:value.desc.trim(),amount:Number(value.value),category:value.category,payment_method:value.method,transaction_date:value.date,created_by:currentProfile.id}});
       await loadAdminData(); document.querySelector("#admin-form-modal")?.remove(); render(); toast("Alteração salva no sistema");
     } catch(error){toast(error.message);submit.disabled=false;}
+  };
+}
+function openPersonalReminderForm(id=""){
+  document.querySelector("#personal-reminder-modal")?.remove();
+  const existing=personalReminders.find((item)=>item.id===id);
+  const defaultStart=new Date(Date.now()+2*86400000);
+  defaultStart.setHours(9,0,0,0);
+  const item=existing||{title:"Revisar agenda e pendências",message_body:"Confira os próximos atendimentos e os clientes que precisam de retorno.",starts_at:defaultStart.toISOString(),repeat_every_days:2,active:false};
+  document.body.insertAdjacentHTML("beforeend",`<div class="modal" id="personal-reminder-modal"><div class="modal-card" style="max-width:650px"><div class="modal-head"><div><div class="eyebrow">AGENDA PESSOAL</div><h3 style="font-size:27px">${existing?"Editar lembrete":"Novo lembrete"}</h3></div><button type="button" class="btn btn-ghost" data-personal-close>✕</button></div><form class="modal-body" id="personal-reminder-form"><div class="form-grid"><label class="field full"><span>Título *</span><input name="title" value="${esc(item.title)}" maxlength="120" required></label><label class="field full"><span>Mensagem *</span><textarea name="messageBody" rows="3" maxlength="500" required>${esc(item.message_body)}</textarea></label><label class="field"><span>Primeiro aviso *</span><input name="startsAt" type="datetime-local" value="${dateTimeLocal(item.starts_at)}" required></label><label class="field"><span>Repetir a cada</span><select name="repeatEveryDays"><option value="">Uma única vez</option>${[1,2,3,7,14,30].map((days)=>`<option value="${days}" ${Number(item.repeat_every_days)===days?"selected":""}>${days===1?"Todo dia":`A cada ${days} dias`}</option>`).join("")}</select></label><label class="field full consent-field"><span><input name="active" type="checkbox" ${item.active?"checked":""}> Deixar lembrete ativo</span><small class="muted">A fila só será liberada depois da conexão Meta e do template aprovado.</small></label></div><div class="modal-actions"><button type="button" class="btn btn-outline" data-personal-close>Cancelar</button><button class="btn btn-dark" type="submit">Salvar lembrete</button></div></form></div></div>`);
+  document.querySelectorAll("[data-personal-close]").forEach((button)=>button.onclick=()=>document.querySelector("#personal-reminder-modal")?.remove());
+  document.querySelector("#personal-reminder-form").onsubmit=async(event)=>{
+    event.preventDefault();
+    const button=event.currentTarget.querySelector('button[type="submit"]');button.disabled=true;
+    const values=Object.fromEntries(new FormData(event.currentTarget).entries());
+    const startsAt=new Date(values.startsAt);
+    if(Number.isNaN(startsAt.getTime())){toast("Informe a data do primeiro aviso");button.disabled=false;return;}
+    const body={barbershop_id:currentProfile.barbershop_id,title:values.title.trim(),message_body:values.messageBody.trim(),starts_at:startsAt.toISOString(),next_run_at:startsAt.toISOString(),repeat_every_days:values.repeatEveryDays?Number(values.repeatEveryDays):null,active:values.active==="on",created_by:currentProfile.id,updated_at:new Date().toISOString()};
+    try{await rest(existing?`personal_reminders?id=eq.${existing.id}`:"personal_reminders",{method:existing?"PATCH":"POST",body});await loadAdminData();document.querySelector("#personal-reminder-modal")?.remove();render();toast("Lembrete pessoal salvo");}
+    catch(error){toast(error.message);button.disabled=false;}
   };
 }
 function currentPipeline(){
@@ -484,7 +504,7 @@ async function loadAdminData() {
     adminLoaded=true; return;
   }
   const shops=await rest(`barbershops?select=*&id=eq.${currentProfile.barbershop_id}`); currentShop=shops?.[0];
-  const [services,professionals,clients,appointments,cash,subscriptions,categories,pipelines,stages,opportunities,reminders,connections,rules,runs]=await Promise.all([
+  const [services,professionals,clients,appointments,cash,subscriptions,categories,pipelines,stages,opportunities,reminders,connections,rules,runs,notificationRows,personalRows]=await Promise.all([
     rest(`services?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
     rest(`professionals?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
     rest(`clients?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=name`),
@@ -499,11 +519,13 @@ async function loadAdminData() {
     rest(`whatsapp_connections?select=id,barbershop_id,provider,phone_number_id,business_account_id,status,verified_at,graph_api_version,display_phone_number,verified_name,quality_rating,last_error&barbershop_id=eq.${currentProfile.barbershop_id}`),
     rest(`automation_rules?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=created_at`),
     rest(`automation_runs?select=id,rule_id,status,scheduled_for,attempt_count,finished_at,error_message&barbershop_id=eq.${currentProfile.barbershop_id}&order=created_at.desc&limit=25`),
+    rest(`tenant_notification_settings?select=*&barbershop_id=eq.${currentProfile.barbershop_id}`),
+    rest(`personal_reminders?select=*&barbershop_id=eq.${currentProfile.barbershop_id}&order=next_run_at`),
   ]);
   currentSubscription=subscriptions?.[0];
   db.services=(services||[]).map(s=>({id:s.id,name:s.name,desc:s.description,duration:s.duration_minutes,price:Number(s.price),returnDays:s.return_interval_days,active:s.active}));
   PEOPLE=(professionals||[]).map(p=>({id:p.id,name:p.name,phone:p.phone,active:p.active}));
-  db.clients=(clients||[]).map(c=>({id:c.id,name:c.name,phone:c.phone,birth:c.birth_date||"",lastVisit:c.last_visit||"",notes:c.notes||"",optIn:c.whatsapp_opt_in}));
+  db.clients=(clients||[]).map(c=>({id:c.id,name:c.name,phone:c.phone,birth:c.birth_date||"",lastVisit:c.last_visit||"",notes:c.notes||"",optIn:c.whatsapp_opt_in,whatsappOptInAt:c.whatsapp_opt_in_at||null}));
   db.appointments=Array.isArray(appointments)?appointments:[];
   db.cash=(cash||[]).map(x=>({id:x.id,appointmentId:x.appointment_id,type:x.type==="income"?"entrada":"saida",desc:x.description,value:Number(x.amount),category:x.category,date:x.transaction_date,method:x.payment_method||""}));
   db.categories=(categories||[]).map(c=>c.name);
@@ -514,6 +536,8 @@ async function loadAdminData() {
   whatsappConnection=connections?.[0]||null;
   automationRules=rules||[];
   automationRuns=runs||[];
+  notificationSettings=notificationRows?.[0]||null;
+  personalReminders=personalRows||[];
   if(!crmPipelines.some((pipeline)=>pipeline.id===activePipelineId)) activePipelineId=crmPipelines.find((pipeline)=>pipeline.active)?.id||crmPipelines[0]?.id||"";
   if(currentShop){
     db.settings={shop:currentShop.name,address:currentShop.address||"",phone:currentShop.phone||"",open:currentShop.opening_time?.slice(0,5)||"09:00",close:currentShop.closing_time?.slice(0,5)||"19:00",breakStart:currentShop.break_start?.slice(0,5)||"",breakEnd:currentShop.break_end?.slice(0,5)||"",greeting:currentShop.whatsapp_message||"",instagram:currentShop.instagram||"",logo:currentShop.logo_url||"",description:currentShop.public_description||"",primaryColor:currentShop.primary_color||"#6d5dfb",secondaryColor:currentShop.secondary_color||"#22c3a6",visualDirection:currentShop.visual_direction||"studio"};
@@ -755,9 +779,18 @@ function adminContent() {
     const queued=automationRuns.filter((run)=>run.status==="queued").length;
     const sent=automationRuns.filter((run)=>run.status==="sent").length;
     const failed=automationRuns.filter((run)=>run.status==="failed").length;
-    const ruleCards=automationRules.map((rule)=>`<div class="list-card"><span><b>${esc(rule.name)}</b><br><small class="muted">${esc(rule.trigger_type)} · ${esc(rule.channel)}${rule.conditions?.meta_template_name?` · template ${esc(rule.conditions.meta_template_name)}`:" · template Meta não definido"}</small></span><span class="badge ${rule.active?"green":""}">${rule.active?"Ativa":"Desativada"}</span></div>`).join("")||'<div class="empty">Nenhuma regra cadastrada.</div>';
+    const eligibleClients=db.clients.filter((client)=>client.optIn&&client.phone.replace(/\D/g,"").length>=10).length;
+    const ownerReady=Boolean(notificationSettings?.owner_phone_normalized&&notificationSettings?.owner_whatsapp_opt_in);
+    const ruleCards=automationRules.map((rule)=>{
+      const recipient=rule.recipient_type==="owner"?"Responsável":"Cliente";
+      const timing=rule.trigger_type==="appointment_reminder"?`${rule.lead_minutes||0} min antes`:rule.trigger_type==="personal_reminder"?"Agenda pessoal":rule.trigger_type;
+      const template=rule.conditions?.meta_template_name?`Template ${esc(rule.conditions.meta_template_name)}`:"Template Meta pendente";
+      return `<div class="list-card"><span><b>${esc(rule.name)}</b><br><small class="muted">${recipient} · ${timing} · ${template}</small></span><span class="badge ${rule.active?"green":""}">${rule.active?"Ativa":"Preparada"}</span></div>`;
+    }).join("")||'<div class="empty">Nenhuma regra cadastrada.</div>';
     const connectionForm=currentProfile?.role==="owner"?`<form id="whatsapp-connect-form"><div class="form-grid"><label class="field"><span>ID da conta WhatsApp Business</span><input name="businessAccountId" inputmode="numeric" value="${esc(whatsappConnection?.business_account_id||"")}" required></label><label class="field"><span>ID do número de telefone</span><input name="phoneNumberId" inputmode="numeric" value="${esc(whatsappConnection?.phone_number_id||"")}" required></label><label class="field full"><span>Token permanente da Meta</span><input name="accessToken" type="password" autocomplete="off" placeholder="Cole o token para validar e guardar no cofre" required><small class="muted">O token segue direto para a função segura, é criptografado no Supabase Vault e nunca volta para esta página.</small></label></div><div class="modal-actions"><span></span><button class="btn btn-dark" type="submit">${connected?"Revalidar conexão":"Conectar com a Meta"}</button></div></form>`:'<div class="empty">Somente o proprietário pode configurar as credenciais da Meta.</div>';
-    return `<div class="metrics"><div class="metric"><small>Conexão Meta</small><b class="${connected?"":"danger"}">${connected?"Ativa":"Pendente"}</b></div><div class="metric"><small>Na fila</small><b>${queued}</b></div><div class="metric"><small>Enviadas</small><b>${sent}</b></div><div class="metric"><small>Falhas</small><b class="${failed?"danger":""}">${failed}</b></div></div><div class="split"><section class="panel"><div class="toolbar"><div><h3 style="margin:0">WhatsApp oficial</h3><small class="muted">Meta Cloud API ${esc(whatsappConnection?.graph_api_version||"v26.0")}</small></div><span class="badge ${connected?"green":"red"}">${connected?"Conectado":"Desconectado"}</span></div>${connected?`<div class="list-card"><span><b>${esc(whatsappConnection.verified_name||db.settings.shop)}</b><br><small class="muted">${esc(whatsappConnection.display_phone_number||whatsappConnection.phone_number_id)}${whatsappConnection.quality_rating?` · qualidade ${esc(whatsappConnection.quality_rating)}`:""}</small></span><span class="badge green">Verificado</span></div>`:""}${connectionForm}</section><section class="panel"><div class="toolbar"><div><h3 style="margin:0">Regras de automação</h3><small class="muted">Fila segura do n8n com templates aprovados.</small></div><span class="badge ${currentSubscription?.plan==="pro"?"green":""}">${currentSubscription?.plan==="pro"?"Plano Pro":"Recurso Pro"}</span></div><div class="list-cards">${ruleCards}</div><div class="empty">${connected?"Conexão validada. O envio só é liberado para regras ativas com template aprovado na Meta e cliente com consentimento.":"Nenhuma mensagem será enviada até a conexão oficial ser validada."}</div></section></div>`;
+    const ownerForm=currentProfile?.role==="owner"?`<form id="notification-owner-form"><div class="form-grid"><label class="field"><span>Nome do responsável</span><input name="ownerName" value="${esc(notificationSettings?.owner_name||currentProfile.name||"")}" required></label><label class="field"><span>WhatsApp do responsável</span><input name="ownerPhone" value="${esc(notificationSettings?.owner_phone||"")}" placeholder="(DDD) 99999-9999" required></label><label class="field full consent-field"><span><input name="ownerOptIn" type="checkbox" ${notificationSettings?.owner_whatsapp_opt_in?"checked":""}> Autorizo lembretes operacionais neste número</span><small class="muted">Usado para avisos da agenda e lembretes pessoais; nunca substitui o número oficial conectado à Meta.</small></label></div><div class="modal-actions"><span></span><button class="btn btn-dark" type="submit">Salvar responsável</button></div></form>`:'<div class="empty">Somente o proprietário pode alterar o destinatário responsável.</div>';
+    const personalCards=personalReminders.map((item)=>`<div class="list-card"><span><b>${esc(item.title)}</b><br><small class="muted">Próximo: ${dateTimeBR(item.next_run_at)} · ${item.repeat_every_days?`a cada ${item.repeat_every_days} dias`:"uma vez"}</small></span><span><button class="btn btn-ghost" data-edit-personal="${item.id}">Editar</button><button class="badge ${item.active?"green":""}" data-toggle-personal="${item.id}">${item.active?"Ativo":"Pausado"}</button><button class="btn btn-ghost danger" data-delete-personal="${item.id}">Excluir</button></span></div>`).join("")||'<div class="empty">Nenhum lembrete pessoal criado.</div>';
+    return `<div class="metrics"><div class="metric"><small>Conexão Meta</small><b class="${connected?"":"danger"}">${connected?"Ativa":"Pendente"}</b></div><div class="metric"><small>Responsável</small><b class="${ownerReady?"":"danger"}">${ownerReady?"Pronto":"Pendente"}</b></div><div class="metric"><small>Clientes elegíveis</small><b>${eligibleClients}</b></div><div class="metric"><small>Fila / enviadas / falhas</small><b>${queued} / ${sent} / <span class="${failed?"danger":""}">${failed}</span></b></div></div><div class="automation-readiness"><b>Base Meta preparada</b><span>15 min antes para cliente e responsável · agenda pessoal recorrente · deduplicação e consentimento por destinatário.</span></div><div class="split"><section class="panel"><div class="toolbar"><div><h3 style="margin:0">Destinatário responsável</h3><small class="muted">Número que recebe lembretes internos da empresa.</small></div><span class="badge ${ownerReady?"green":""}">${ownerReady?"Elegível":"Configurar"}</span></div>${ownerForm}</section><section class="panel"><div class="toolbar"><div><h3 style="margin:0">Agenda pessoal</h3><small class="muted">Avisos pontuais ou repetidos, como a cada 2 dias.</small></div>${currentProfile?.role==="owner"?'<button class="btn btn-dark" data-add-personal>+ Lembrete</button>':""}</div><div class="list-cards">${personalCards}</div></section></div><div class="split automation-lower"><section class="panel"><div class="toolbar"><div><h3 style="margin:0">Regras de lembrete</h3><small class="muted">Modelos replicados automaticamente para cada empresa.</small></div><span class="badge ${currentSubscription?.plan==="pro"?"green":""}">${currentSubscription?.plan==="pro"?"Plano Pro":"Recurso Pro"}</span></div><div class="list-cards">${ruleCards}</div><div class="empty">As regras continuam desligadas até vincularmos os templates aprovados pela Meta.</div></section><section class="panel"><div class="toolbar"><div><h3 style="margin:0">WhatsApp oficial</h3><small class="muted">Meta Cloud API ${esc(whatsappConnection?.graph_api_version||"v26.0")}</small></div><span class="badge ${connected?"green":"red"}">${connected?"Conectado":"Amanhã"}</span></div>${connected?`<div class="list-card"><span><b>${esc(whatsappConnection.verified_name||db.settings.shop)}</b><br><small class="muted">${esc(whatsappConnection.display_phone_number||whatsappConnection.phone_number_id)}${whatsappConnection.quality_rating?` · qualidade ${esc(whatsappConnection.quality_rating)}`:""}</small></span><span class="badge green">Verificado</span></div>`:"<div class=\"empty\">A estrutura está pronta. A credencial e os IDs da Meta serão ligados na próxima etapa.</div>"}${connectionForm}</section></div>`;
   }
   if(adminTab === "profissionais") return `<section class="panel"><div class="toolbar"><span class="muted">Equipe e disponibilidade para agendamentos</span><button class="btn btn-dark" data-add-professional>+ Profissional</button></div><div class="list-cards">${PEOPLE.map(p=>`<div class="list-card"><span><b>${p.name}</b><br><small class="muted">${p.phone||"Sem telefone"}</small></span><span><button class="btn btn-ghost" data-edit-professional="${p.id}">Editar</button><button class="badge ${p.active?"green":"red"}" data-toggle-professional="${p.id}">${p.active?"Ativo":"Inativo"}</button></span></div>`).join("")||'<div class="empty">Nenhum profissional cadastrado.</div>'}</div></section>`;
   return `<section class="panel"><div class="toolbar"><div><div class="eyebrow">IDENTIDADE DA EMPRESA</div><h3 style="margin:5px 0 0">Página pública e operação</h3></div><a class="btn btn-outline" target="_blank" rel="noopener" href="?tenant=${encodeURIComponent(currentShop.slug)}">Visualizar página</a></div><div class="form-grid"><label class="field"><span>Nome da empresa</span><input id="set-shop" value="${esc(db.settings.shop)}"></label><label class="field"><span>WhatsApp</span><input id="set-phone" value="${esc(db.settings.phone)}"></label><label class="field"><span>Instagram</span><input id="set-instagram" value="${esc(db.settings.instagram)}" placeholder="@empresa"></label><label class="field"><span>Link da logo</span><input id="set-logo" value="${esc(db.settings.logo)}" placeholder="https://..."></label><label class="field full"><span>Endereço</span><input id="set-address" value="${esc(db.settings.address)}"></label><label class="field full"><span>Descrição da página pública</span><textarea id="set-description" rows="3">${esc(db.settings.description)}</textarea></label><label class="color-field"><input id="set-primary-color" type="color" value="${esc(db.settings.primaryColor)}"><span><b>Cor predominante</b><small>Marca, superfícies e ações</small></span></label><label class="color-field"><input id="set-secondary-color" type="color" value="${esc(db.settings.secondaryColor)}"><span><b>Cor da tinta</b><small>Textos, traços e contraste</small></span></label><div class="direction-config-note"><small>DIREÇÃO AUTOMÁTICA</small><b>${directionLabel(db.settings.visualDirection)}</b><span>A fonte e a composição acompanham as duas cores.</span></div><label class="field"><span>Abertura</span><input id="set-open" type="time" value="${db.settings.open}"></label><label class="field"><span>Fechamento</span><input id="set-close" type="time" value="${db.settings.close}"></label><label class="field"><span>Início do intervalo</span><input id="set-break-start" type="time" value="${db.settings.breakStart}"></label><label class="field"><span>Fim do intervalo</span><input id="set-break-end" type="time" value="${db.settings.breakEnd}"></label><label class="field full"><span>Saudação do WhatsApp</span><textarea id="set-greeting" rows="4">${esc(db.settings.greeting)}</textarea></label></div><div class="modal-actions"><span></span><button class="btn btn-dark" data-save-settings>Salvar configurações</button></div></section>`;
@@ -848,6 +881,26 @@ function bind() {
       await loadAdminData();render();toast("WhatsApp oficial conectado com segurança");
     }catch(error){toast(error.message);button.disabled=false;}
   });
+  document.querySelector("#notification-owner-form")?.addEventListener("submit",async(event)=>{
+    event.preventDefault();
+    const button=event.currentTarget.querySelector("button[type=submit]");button.disabled=true;
+    const values=Object.fromEntries(new FormData(event.currentTarget).entries());
+    const digits=String(values.ownerPhone||"").replace(/\D/g,"");
+    if(digits.length<10){toast("Informe o WhatsApp do responsável com DDD");button.disabled=false;return;}
+    const body={barbershop_id:currentProfile.barbershop_id,owner_name:String(values.ownerName||"").trim(),owner_phone:String(values.ownerPhone||"").trim(),owner_whatsapp_opt_in:values.ownerOptIn==="on",default_country_code:notificationSettings?.default_country_code||"55",timezone:notificationSettings?.timezone||"America/Sao_Paulo"};
+    try{await rest("tenant_notification_settings?on_conflict=barbershop_id",{method:"POST",body,prefer:"resolution=merge-duplicates,return=representation"});await loadAdminData();render();toast("Responsável salvo para os lembretes");}
+    catch(error){toast(error.message);button.disabled=false;}
+  });
+  document.querySelector("[data-add-personal]")?.addEventListener("click",()=>openPersonalReminderForm());
+  document.querySelectorAll("[data-edit-personal]").forEach((button)=>button.addEventListener("click",()=>openPersonalReminderForm(button.dataset.editPersonal)));
+  document.querySelectorAll("[data-toggle-personal]").forEach((button)=>button.addEventListener("click",async()=>{
+    const item=personalReminders.find((candidate)=>candidate.id===button.dataset.togglePersonal);
+    if(!item)return;
+    const nextRunAt=!item.active&&new Date(item.next_run_at)<new Date()?new Date().toISOString():item.next_run_at;
+    try{await rest(`personal_reminders?id=eq.${item.id}`,{method:"PATCH",body:{active:!item.active,next_run_at:nextRunAt,updated_at:new Date().toISOString()}});await loadAdminData();render();toast(item.active?"Lembrete pausado":"Lembrete ativado");}
+    catch(error){toast(error.message);}
+  }));
+  document.querySelectorAll("[data-delete-personal]").forEach((button)=>button.addEventListener("click",()=>confirmAdmin("O lembrete pessoal será excluído definitivamente.",()=>rest(`personal_reminders?id=eq.${button.dataset.deletePersonal}`,{method:"DELETE"}))));
   document.querySelectorAll("[data-confirm-appt]").forEach(x=>x.onclick=async()=>{try{await rest(`appointments?id=eq.${x.dataset.confirmAppt}`,{method:"PATCH",body:{status:"confirmed",updated_at:new Date().toISOString()}});await loadAdminData();render();toast("Agendamento confirmado");}catch(error){toast(error.message);}});
   document.querySelectorAll("[data-complete-appt]").forEach(x=>x.onclick=()=>openPaymentForm(db.appointments.find(a=>a.id===x.dataset.completeAppt)));
   document.querySelectorAll("[data-noshow-appt]").forEach(x=>x.onclick=()=>confirmAdmin("O agendamento será marcado como falta e o horário será encerrado.",()=>rest(`appointments?id=eq.${x.dataset.noshowAppt}`,{method:"PATCH",body:{status:"no_show",updated_at:new Date().toISOString()}})));
@@ -978,6 +1031,7 @@ function bind() {
       servicos: "[data-add-service]",
       profissionais: "[data-add-professional]",
       crm: "[data-add-opportunity]",
+      automacoes: "[data-add-personal]",
     };
     if (targets[adminTab]) document.querySelector(targets[adminTab])?.click();
     else if (adminTab === "dashboard") {

@@ -201,6 +201,34 @@ h3 {
 .muted {
   color: var(--muted);
 }
+.consent-field > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.consent-field input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--copper);
+}
+.automation-readiness {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  margin: 0 0 20px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--copper) 9%, var(--card));
+}
+.automation-readiness span {
+  color: var(--muted);
+  text-align: right;
+}
+.automation-lower {
+  margin-top: 20px;
+}
 .service-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1215,6 +1243,13 @@ body[data-direction="serene"] .crm-column { background: rgba(255,255,255,.4); }
   }
 }
 @media (max-width: 600px) {
+  .automation-readiness {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .automation-readiness span {
+    text-align: left;
+  }
   .auth-page {
     padding: 20px 14px;
   }

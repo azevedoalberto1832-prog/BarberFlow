@@ -24,9 +24,12 @@ Use o identificador único da execução do n8n como `workerId`.
   "action": "claim",
   "workerId": "n8n-execution-123",
   "batchSize": 10,
-  "leaseSeconds": 300
+  "leaseSeconds": 300,
+  "horizonMinutes": 2880
 }
 ```
+
+Antes de reservar a fila, o endpoint prepara os lembretes de agendamento das próximas 48 horas e os lembretes pessoais que vencem nos próximos 5 minutos. A resposta inclui `generated` com a quantidade criada. Cada item possui `recipient.type` (`client` ou `owner`) e um `payload` para preencher as variáveis do template Meta.
 
 Cada item retorna um `leaseToken`. A reserva impede consumo duplicado e expira caso o worker pare. Depois de três tentativas expiradas, a execução é marcada como falha.
 
