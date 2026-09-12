@@ -856,6 +856,93 @@ body[data-direction="serene"] .toast { background:var(--brand-primary); color:va
 .chrona-platform .panel { box-shadow: 0 10px 34px rgba(23,35,79,.055); }
 .chrona-platform .metric span { display:block; margin-top:4px; color:var(--muted); font-size:12px; }
 .chrona-platform .badge { background:#eef0f6; }
+.platform-alert-panel {
+  position: relative;
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  gap: 0;
+  margin-top: 18px;
+  padding: 0;
+  overflow: hidden;
+  border-color: #d9dfec;
+  background: #fff;
+}
+.platform-alert-rail {
+  display: grid;
+  grid-template-rows: repeat(4,1fr);
+  background: #111a32;
+}
+.platform-alert-rail i { position:relative; border-bottom:1px solid rgba(255,255,255,.22); }
+.platform-alert-rail i::after {
+  content:"";
+  position:absolute;
+  width:6px;
+  height:6px;
+  right:3px;
+  top:50%;
+  border-radius:50%;
+  transform:translate(50%,-50%);
+  background:#68edd3;
+  box-shadow:0 0 12px rgba(104,237,211,.75);
+}
+.platform-alert-body { padding: 28px 30px 26px; }
+.platform-alert-head { align-items:flex-start; }
+.platform-alert-head h3 { margin:5px 0 5px; font-size:25px; letter-spacing:-.025em; }
+.platform-alert-head p { margin:0; color:#667085; }
+.alert-schedule {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  margin:22px 0 24px;
+  border:1px solid #e2e7f0;
+  border-radius:14px;
+  background:#f6f8fc;
+}
+.alert-schedule span { padding:13px 16px; border-right:1px solid #e2e7f0; }
+.alert-schedule span:last-child { border-right:0; }
+.alert-schedule b,.alert-schedule small { display:block; }
+.alert-schedule b { color:#111a32; font-size:14px; }
+.alert-schedule small { margin-top:2px; color:#667085; font-size:11px; }
+.platform-alert-panel .field > span,
+.platform-alert-panel .consent-field > span { color:#26314d; font:600 13px/1.4 "DM Sans",sans-serif; }
+.platform-alert-panel .field input {
+  border-color:#ccd4e2;
+  background:#f8faff;
+  color:#111a32;
+  -webkit-text-fill-color:#111a32;
+  caret-color:#5b5df0;
+  font:500 14px/1.4 "DM Sans",sans-serif;
+}
+.platform-alert-panel .field input::placeholder { color:#7b8499; opacity:1; }
+.platform-alert-panel .field input:focus { border-color:#5b5df0; background:#fff; box-shadow:0 0 0 3px rgba(91,93,240,.12); }
+.platform-alert-panel .consent-field small { display:block; margin-top:4px; color:#667085; font:400 12px/1.45 "DM Sans",sans-serif; }
+.platform-alert-footer {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  margin-top:22px;
+  padding-top:18px;
+  border-top:1px solid #e2e7f0;
+}
+.platform-alert-footer b,.platform-alert-footer small { display:block; }
+.platform-alert-footer b { color:#111a32; font-size:13px; }
+.platform-alert-footer small { margin-top:3px; color:#667085; }
+.support-mode {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:18px;
+  padding:12px 14px 12px 16px;
+  border:1px solid color-mix(in srgb,var(--brand-primary,var(--copper)) 32%,var(--line));
+  border-radius:14px;
+  background:color-mix(in srgb,var(--brand-primary,var(--copper)) 10%,var(--card));
+  color:var(--ink);
+}
+.support-mode > span { display:grid; grid-template-columns:auto auto; align-items:center; justify-content:start; column-gap:9px; }
+.support-mode i { width:8px; height:8px; border-radius:50%; background:var(--brand-primary,var(--copper)); box-shadow:0 0 0 5px color-mix(in srgb,var(--brand-primary,var(--copper)) 17%,transparent); }
+.support-mode b { font-size:13px; }
+.support-mode small { grid-column:2; color:var(--muted); margin-top:2px; }
 .chrona-platform .platform-table { margin-top:18px; padding:26px; }
 .chrona-platform th { letter-spacing:.08em; }
 .chrona-platform td { vertical-align:middle; }
@@ -863,6 +950,13 @@ body[data-direction="serene"] .toast { background:var(--brand-primary); color:va
 .tenant-dot { width:10px; height:38px; border-radius:999px; flex:0 0 auto; }
 .row-actions { min-width:310px; }
 .row-actions .btn { padding:8px 11px; font-size:12px; }
+@media (max-width: 700px) {
+  .platform-alert-body { padding:22px 18px; }
+  .platform-alert-head,.platform-alert-footer,.support-mode { align-items:stretch; flex-direction:column; }
+  .alert-schedule { grid-template-columns:1fr 1fr; }
+  .alert-schedule span:nth-child(2) { border-right:0; }
+  .alert-schedule span:nth-child(-n+2) { border-bottom:1px solid #e2e7f0; }
+}
 .chrona-login {
   min-height: 100vh;
   padding: 38px 16px;

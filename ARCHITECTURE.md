@@ -32,8 +32,9 @@ O CRUD de pipelines, etapas e oportunidades já está disponível no painel admi
 
 Os números obedecem a três escopos: cada tenant possui um remetente Meta próprio, o responsável do tenant recebe alertas internos e o administrador da plataforma recebe alertas de assinatura. A matriz universal contém confirmação do agendamento, lembretes de 15 minutos para cliente e responsável, aniversário, retorno após 20 dias, agenda pessoal e vencimento do plano em 7, 3, 1 e 0 dias. O gatilho de criação do tenant replica essa matriz para empresas futuras.
 
-Os lembretes Meta agora distinguem cliente e responsável da empresa. Cada tenant recebe regras inativas para avisar ambos 15 minutos antes do atendimento e uma regra de agenda pessoal recorrente. A preparação da fila é idempotente, respeita fuso horário, consentimento, assinatura e mudanças no agendamento. A ligação operacional dos templates e do número oficial está documentada em `docs/META_REMINDERS.md`.
+Os lembretes Meta agora distinguem cliente e responsável da empresa. Cada tenant recebe regras inativas para avisar ambos 15 minutos antes do atendimento e uma regra de agenda pessoal recorrente. A preparação da fila é idempotente, respeita fuso horário, consentimento, assinatura e mudanças no agendamento. A ligação operacional dos templates e do número oficial está documentada em `docs/META_REMINDERS.md`. O webhook assinado, o registro de entrega/leitura/falha e a arquitetura do chatbot universal já estão implementados; o fluxo completo está em `docs/WHATSAPP_CHATBOT.md`.
 
-1. Webhook assinado para entrega e leitura.
-2. Opt-out, janela de 24 horas e gestão de templates aprovados.
-3. Métricas de conversão e reativação.
+1. Configurar os segredos do aplicativo Meta e validar o webhook.
+2. Aprovar e vincular os templates de cada tenant.
+3. Implementar o processador da máquina de estados e ativar o piloto controlado.
+4. Adicionar métricas de conversão, reativação e custo por tenant.

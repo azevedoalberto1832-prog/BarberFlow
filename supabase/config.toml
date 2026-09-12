@@ -9,5 +9,8 @@ verify_jwt = true
 [functions.whatsapp-send]
 verify_jwt = false
 
+[functions.whatsapp-webhook]
+verify_jwt = false
+
 [functions.tenant-onboarding]
 verify_jwt = true

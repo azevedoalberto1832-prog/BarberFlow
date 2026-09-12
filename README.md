@@ -19,10 +19,12 @@ A **PALAZZO STUDIO BARBER** é o primeiro tenant real e a **Nayara Lash Designer
 - Conclusão do atendimento agenda automaticamente o próximo retorno conforme os serviços realizados.
 - Fila de automações com consumo autenticado pelo n8n, lease transacional e proteção contra duplicidade.
 - Integração com Meta Cloud API v26.0, token por tenant criptografado no Supabase Vault e envio restrito a templates aprovados.
+- Chatbot universal de agendamento replicado por tenant, com estado isolado, fila idempotente, opt-out, fallback e encaminhamento humano.
+- Modo de verificação do Super Admin para acessar qualquer painel com a conta central da Chrona e registro de auditoria.
 
 ## Arquitetura e evolução
 
-A aplicação usa um único banco multi-tenant no Supabase. Cada registro operacional pertence a um estabelecimento e as políticas RLS aplicam o isolamento no banco. O tenant público é selecionado por `?tenant=<slug>`; Palazzo e Nayara usam o mesmo código e dados isolados. A fundação de CRM e automações está documentada em `ARCHITECTURE.md` e permanece desativada até a integração oficial.
+A aplicação usa um único banco multi-tenant no Supabase. Cada registro operacional pertence a um estabelecimento e as políticas RLS aplicam o isolamento no banco. O tenant público é selecionado por `?tenant=<slug>`; Palazzo e Nayara usam o mesmo código e dados isolados. A fundação de CRM e automações está documentada em `ARCHITECTURE.md`; o chatbot universal está detalhado em `docs/WHATSAPP_CHATBOT.md` e permanece desativado até a conexão oficial de cada tenant.
 
 ## Execução local
 
